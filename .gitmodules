@@ -1,0 +1,3 @@
+[submodule "clang-code-extractor"]
+	path = clang-code-extractor
+	url = https://github.com/moschiel/clang-code-extractor.git

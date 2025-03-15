@@ -1,0 +1,45 @@
+{
+    "MOCK_COPY_FILE_CONTENT": {
+      "prefix": "mcf",
+      "body": [
+        "//__MOCK_COPY_FILE_CONTENT__"
+      ]
+    },
+    "MOCK_REPLACE_START": {
+      "prefix": "mrs",
+      "body": [
+        "//__MOCK_REPLACE_START: ${1:type} ${2:name}",
+        "${0:// conteúdo aqui}",
+        "//__MOCK_REPLACE_END"
+      ]
+    },
+    "MOCK_REPLACE_LINE": {
+      "prefix": "mrl",
+      "body": [
+        "//__MOCK_REPLACE_LINE: ${1:type} ${2:name}"
+      ]
+    },
+    "MOCK_TOP_START": {
+      "prefix": "mts",
+      "body": [
+        "//__MOCK_TOP_START",
+        "",
+        "//__MOCK_TOP_END"
+      ]
+    },
+    "MOCK_BOTTOM_START": {
+      "prefix": "mbs",
+      "body": [
+        "//__MOCK_BOTTOM_START",
+        "",
+        "//__MOCK_BOTTOM_END"
+      ]
+    },
+    "MOCK_REMOVE": {
+      "prefix": "mrm",
+      "body": [
+        "//__MOCK_REMOVE: ${1:type} ${2:name}"
+      ]
+    },
+
+  }

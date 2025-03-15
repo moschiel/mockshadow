@@ -1,0 +1,134 @@
+#!/bin/bash
+#  Created on: 21 de jan de 2025
+#      Author: roger.moschiel
+
+set -e
+
+# Obtém o diretório real onde o script está armazenado (seguindo o link simbólico)
+SCRIPT_MOCKSHADOW_DIR="$(dirname "$(readlink -f "$0")")"
+
+source "$SCRIPT_MOCKSHADOW_DIR/definitions.sh"
+
+# Flags to control execution
+RUN_MOCK=false
+RUN_REMOCK=false
+RUN_BUILD=false
+RUN_REBUILD=false
+RUN_EXEC=false
+RUN_UNMOCK=false
+SHOW_DETAILS=false
+RUN_DEBUG=false
+RUN_LIST=false
+RUN_CLONE_TREE=false
+RUN_CLONE_PROJECT=false
+
+
+# Process arguments
+for arg in "$@"; do
+    case "$arg" in
+        details)
+            SHOW_DETAILS=true
+            ;;
+        run)
+            RUN_MOCK=true
+            RUN_BUILD=true
+            RUN_EXEC=true
+            ;;
+        #run mock only
+        mock) 
+            RUN_MOCK=true
+            ;;
+        #ren remock only
+        remock) 
+            RUN_REMOCK=true
+            ;;
+        #run build only
+        build) 
+            RUN_BUILD=true
+            ;;
+        #run rebuild only
+        rebuild) 
+            RUN_REBUILD=true
+            ;;
+        #run exec only
+        exec) 
+            RUN_EXEC=true
+            ;;
+        debug)
+            RUN_DEBUG=true
+            ;;
+        #run unmock only
+        unmock) 
+            RUN_UNMOCK=true
+            ;;
+        list)
+            RUN_LIST=true
+            ;;
+        clone-tree)
+            RUN_CLONE_TREE=true
+            ;;
+        clone-project)
+            RUN_CLONE_PROJECT=true
+            ;;
+        *)
+            echo "Warning: Unknown argument '$arg'"
+            ;;
+    esac
+done
+
+
+if $RUN_LIST; then
+    list_mocks
+fi
+
+if $RUN_CLONE_TREE; then
+    clone_project_tree
+fi
+
+if $RUN_CLONE_PROJECT; then
+    clone_project
+fi
+
+if $RUN_MOCK || $RUN_REMOCK; then
+    mock_args=()
+    if $SHOW_DETAILS; then
+        mock_args+=("details")
+    fi
+    if $RUN_REMOCK; then
+        mock_args+=("remock")
+    fi
+    
+    mock_project ${mock_args[@]}
+fi
+
+
+if $RUN_BUILD || $RUN_REBUILD; then
+    #cp CMakeLists.txt "$MOCKED_PROJECT"
+    if $RUN_REBUILD; then
+        remove_directory build
+    fi
+
+    if [ ! -d build ]; then
+        mkdir build
+    fi
+
+    cd build
+    echo "Generating Makefile with CMake"
+    cmake ../
+    echo "Building Project..."
+    make
+    cd ../
+fi
+
+if $RUN_EXEC || $RUN_DEBUG; then
+    echo "Executing Target..."
+    if $RUN_EXEC; then
+        ./build/MSC_Simulator
+    else
+        gdb -q --args ./build/MSC_Simulator
+    fi
+fi
+
+if $RUN_UNMOCK; then
+    unmock_project
+fi
