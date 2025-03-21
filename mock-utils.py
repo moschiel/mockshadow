@@ -8,9 +8,11 @@ import sys
 import re
 import subprocess
 import tempfile
+import time
 import env # Variaveis de ambiente env.py
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
+ENCODING="latin-1"
 
 def validate_file_exists(file_path: str):
     if not os.path.isfile(file_path):
@@ -141,7 +143,7 @@ def check_file_mock_mode(file_path: str) -> str:
         return "none"
     
     # Abre o arquivo e lê a primeira linha, removendo quebras de linha e carriage returns
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, 'r', encoding=ENCODING) as f:
         first_line = f.readline().rstrip('\r\n')
     
     if first_line == "//__MOCK_COPY_FILE_CONTENT__":
@@ -189,7 +191,7 @@ def mock_remove_content(mock_file_cmds: str, mock_file_to_create: str, show_deta
         sys.exit(1)
     
     count = 0
-    with open(mock_file_cmds, 'r', encoding='utf-8') as f:
+    with open(mock_file_cmds, 'r', encoding=ENCODING) as f:
         for line in f:
             # Remove a quebra de linha no final, se houver
             line = line.rstrip('\n')
@@ -239,7 +241,7 @@ def mock_remove_content(mock_file_cmds: str, mock_file_to_create: str, show_deta
                     sys.exit(1)
                 
                 # Lê o conteúdo do arquivo de mock
-                with open(mock_file_to_create, 'r', encoding='utf-8') as mf:
+                with open(mock_file_to_create, 'r', encoding=ENCODING) as mf:
                     file_lines = mf.readlines()
                 
                 # Monta o novo conteúdo:
@@ -256,7 +258,7 @@ def mock_remove_content(mock_file_cmds: str, mock_file_to_create: str, show_deta
                     elif i > end_line:
                         new_lines.append(content)
                 # Escreve o novo conteúdo de volta para o arquivo
-                with open(mock_file_to_create, 'w', encoding='utf-8') as mf:
+                with open(mock_file_to_create, 'w', encoding=ENCODING) as mf:
                     mf.writelines(new_lines)
 
 def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
@@ -294,7 +296,7 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
     REPLACE_MODE = ""
     
     # Lê todas as linhas do arquivo de comandos (preservando quebras de linha)
-    with open(mock_file_cmds, "r", encoding="utf-8") as f:
+    with open(mock_file_cmds, "r", encoding=ENCODING) as f:
         cmds_lines = f.readlines()
     
     # Itera sobre cada linha (contabilizando o número da linha)
@@ -361,7 +363,7 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
             # Extrai o conteúdo do arquivo de comandos entre SRC_START_LINE e SRC_END_LINE
             extracted_content = cmds_lines[SRC_START_LINE - 1:SRC_END_LINE]
             # Escreve esse conteúdo em um arquivo temporário
-            with tempfile.NamedTemporaryFile(delete=False, mode="w", encoding="utf-8") as tmp_file:
+            with tempfile.NamedTemporaryFile(delete=False, mode="w", encoding=ENCODING) as tmp_file:
                 tmp_file.writelines(extracted_content)
                 temp_file_path = tmp_file.name
             
@@ -369,15 +371,15 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
             # - Mantém as linhas antes de DEST_START_LINE
             # - Insere o conteúdo do arquivo temporário no lugar das linhas de DEST_START_LINE até DEST_END_LINE
             # - Mantém as linhas após DEST_END_LINE
-            with open(mock_file_to_create, "r", encoding="utf-8") as mf:
+            with open(mock_file_to_create, "r", encoding=ENCODING) as mf:
                 mock_file_lines = mf.readlines()
             new_content = []
             new_content.extend(mock_file_lines[:DEST_START_LINE - 1])
-            with open(temp_file_path, "r", encoding="utf-8") as tf:
+            with open(temp_file_path, "r", encoding=ENCODING) as tf:
                 temp_lines = tf.readlines()
             new_content.extend(temp_lines)
             new_content.extend(mock_file_lines[DEST_END_LINE:])
-            with open(mock_file_to_create, "w", encoding="utf-8") as mf:
+            with open(mock_file_to_create, "w", encoding=ENCODING) as mf:
                 mf.writelines(new_content)
             
             # Remove o arquivo temporário
@@ -420,7 +422,7 @@ def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_d
     DEST_START_LINE = 0
 
     # Lê todas as linhas do arquivo de comandos
-    with open(mock_file_cmds, "r", encoding="utf-8") as f:
+    with open(mock_file_cmds, "r", encoding=ENCODING) as f:
         cmds_lines = f.readlines()
     
     for line in cmds_lines:
@@ -464,7 +466,7 @@ def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_d
             # Para arquivos .h, tenta identificar os include guards
             if block_type == "MOCK_BOTTOM":
                 if mock_file_to_create.endswith(".h"):
-                    with open(mock_file_to_create, "r", encoding="utf-8") as f:
+                    with open(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
                     # Procura a última ocorrência de "#endif"
                     endif_lines = [i + 1 for i, l in enumerate(dest_lines) if "#endif" in l]
@@ -474,12 +476,12 @@ def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_d
                         print("Aviso: Nenhum #endif encontrado. Inserindo no final do arquivo.")
                         DEST_START_LINE = len(dest_lines)
                 else:
-                    with open(mock_file_to_create, "r", encoding="utf-8") as f:
+                    with open(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
                     DEST_START_LINE = len(dest_lines)
             elif block_type == "MOCK_TOP":
                 if mock_file_to_create.endswith(".h"):
-                    with open(mock_file_to_create, "r", encoding="utf-8") as f:
+                    with open(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
                     # Procura a primeira linha que inicia com "#define"
                     define_lines = [i + 1 for i, l in enumerate(dest_lines) if l.lstrip().startswith("#define")]
@@ -491,10 +493,10 @@ def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_d
                     DEST_START_LINE = 1
             
             # Insere o conteúdo extraído no arquivo de destino
-            with open(mock_file_to_create, "r", encoding="utf-8") as f:
+            with open(mock_file_to_create, "r", encoding=ENCODING) as f:
                 target_lines = f.readlines()
             new_content = target_lines[:DEST_START_LINE - 1] + block_content + target_lines[DEST_START_LINE - 1:]
-            with open(mock_file_to_create, "w", encoding="utf-8") as f:
+            with open(mock_file_to_create, "w", encoding=ENCODING) as f:
                 f.writelines(new_content)
             continue
     # Final do loop de leitura
@@ -503,9 +505,121 @@ def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_d
         print(f"Erro: Bloco iniciado com '{MOCK_CMD}' não foi encerrado corretamente.")
         sys.exit(1)
 
+def insert_mock_original_content(original_file: str, mock_file_to_create: str, show_details: bool):
+    print("TODO: insert_mock_original_content")
 
-insert_mock_top_bottom(
-    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/__mock__FreeRTOSConfig.h",
-    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/FreeRTOSConfig.h",
-    True
-)
+def unmock_project():
+    """
+    Remove todos os arquivos com extensão .c ou .h dentro de DIR_SHADOW_MOCKS,
+    exceto aqueles cujo nome comece com "__mock__" ou "__additional__". Após a limpeza,
+    chama clone_project().
+
+    Para arquivos removidos, exibe o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT.
+    """
+    print("Cleaning", os.path.basename(env.DIR_SHADOW_MOCKS), "...")
+    
+    # Percorre recursivamente o diretório DIR_SHADOW_MOCKS
+    for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
+        for file in files:
+            # Filtra arquivos com extensão .c ou .h, mas exclui os que começam com "__mock__" ou "__additional__"
+            if (file.endswith(".c") or file.endswith(".h")) and not (file.startswith("__mock__") or file.startswith("__additional__")):
+                file_path = os.path.join(root, file)
+                try:
+                    os.remove(file_path)
+                    # Calcula o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT
+                    relative_path = os.path.relpath(file_path, env.DIR_MOCK_SHADOW_PROJECT)
+                    print("  Removed", relative_path)
+                except Exception as e:
+                    print(f"Error removing file {file_path}: {e}", file=sys.stderr)
+    
+    print("Cleaning Complete!")
+    
+    # Chama a função clone_project para recriar a árvore de diretórios
+    clone_project()
+
+def mock_project(*args):
+    # Parse arguments
+    show_details = False
+    is_remock = False
+    for arg in args:
+        if arg == "details":
+            show_details = True
+        elif arg == "remock":
+            is_remock = True
+
+    proj_basename = os.path.basename(env.DIR_ORIGINAL_PROJECT)
+
+    # Antes de mockar, se "remock" for solicitado, chama unmock_project()
+    if is_remock:
+        unmock_project()
+
+    print("Creating Mock Files ...")
+    file_last_mock_timestamp = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "last_mock_timestamp.txt")
+    if os.path.isfile(file_last_mock_timestamp):
+        with open(file_last_mock_timestamp, "r", encoding=ENCODING) as f:
+            last_mock_timestamp = int(f.read().strip())
+    else:
+        last_mock_timestamp = 0
+
+    # Itera sobre todos os arquivos .c e .h que iniciam com "__mock__" em DIR_SHADOW_MOCKS
+    for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
+        for filename in files:
+            if (filename.endswith(".c") or filename.endswith(".h")) and filename.startswith("__mock__"):
+                mock_file = os.path.join(root, filename)
+                mock_dir = os.path.dirname(mock_file)
+                mock_basename = os.path.basename(mock_file)
+                original_basename = mock_basename.replace("__mock__", "")
+                mock_file_to_create = os.path.join(mock_dir, original_basename)
+
+                # Se o arquivo a ser criado não existe ou se o arquivo __mock__ foi modificado após o último mock
+                if (not os.path.isfile(mock_file_to_create)) or (os.stat(mock_file).st_mtime > last_mock_timestamp):
+                    mock_mode = check_file_mock_mode(mock_file)
+                    rel_path = os.path.relpath(mock_file_to_create, env.DIR_MOCK_SHADOW_PROJECT)
+                    print(f"  Creating {rel_path} (MOCK_MODE: {mock_mode})")
+
+                    # Remove DIR_SHADOW_MOCKS do caminho e junta com DIR_ORIGINAL_PROJECT para obter o arquivo original
+                    partial_dir = os.path.relpath(mock_dir, env.DIR_SHADOW_MOCKS)
+                    original_file = os.path.join(env.DIR_ORIGINAL_PROJECT, partial_dir, original_basename)
+                    validate_file_exists(original_file)
+
+                    if mock_mode == "copy":
+                        # Cria o arquivo de mock como cópia do arquivo original
+                        shutil.copy2(original_file, mock_file_to_create)
+                        # Processa as seções: remove, substitui e insere conteúdo
+                        mock_remove_content(mock_file, mock_file_to_create, show_details)
+                        mock_replace_content(mock_file, mock_file_to_create, show_details)
+                        insert_mock_top_bottom(mock_file, mock_file_to_create, show_details)
+                    else:
+                        # Cria o arquivo de mock com o conteúdo do arquivo __mock__
+                        shutil.copy2(mock_file, mock_file_to_create)
+                        # Insere seções do conteúdo original no arquivo mockado
+                        insert_mock_original_content(original_file, mock_file_to_create, show_details)
+
+    # Atualiza o timestamp do último mock
+    last_mock_timestamp = int(time.time())
+    with open(file_last_mock_timestamp, "w", encoding=ENCODING) as f:
+        f.write(str(last_mock_timestamp))
+    print("Creating Mock Files Complete!")
+
+    print(f"Mocking {os.path.basename(env.DIR_TEMP_PROJECT)} ...")
+    # Itera sobre os mocks em DIR_SHADOW_MOCKS que são .c ou .h, mas não começam com "__mock__"
+    for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
+        for filename in files:
+            if (filename.endswith(".c") or filename.endswith(".h")) and not filename.startswith("__mock__"):
+                mock_file = os.path.join(root, filename)
+                proj_file = os.path.relpath(mock_file, env.DIR_SHADOW_MOCKS)
+                project_file_to_replace = os.path.join(env.DIR_TEMP_PROJECT, proj_file)
+
+                basename_project_to_mock = os.path.basename(env.DIR_TEMP_PROJECT)
+                print(f"  Mocking {os.path.join(basename_project_to_mock, proj_file)}")
+                file_basename = os.path.basename(proj_file)
+                if file_basename.startswith("__additional__"):
+                    # Arquivos __additional__ são copiados para o projeto
+                    os.makedirs(os.path.dirname(project_file_to_replace), exist_ok=True)
+                    shutil.copy2(mock_file, project_file_to_replace)
+                else:
+                    original_file = os.path.join(env.DIR_ORIGINAL_PROJECT, proj_file)
+                    validate_file_exists(original_file)
+                    # Substitui o arquivo original pela versão mockada
+                    shutil.copy2(mock_file, project_file_to_replace)
+    print(f"Mocking {os.path.basename(env.DIR_TEMP_PROJECT)} Complete!")
