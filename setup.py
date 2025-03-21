@@ -9,6 +9,25 @@ def run_command(cmd, shell=False):
     print("Running:", " ".join(cmd) if not shell else cmd)
     subprocess.run(cmd, shell=shell, check=True)
 
+def make_scripts_executable(root_dir):
+    """
+    Percorre recursivamente o diretório 'root_dir' e define permissões executáveis
+    para todos os arquivos com extensão '.py' que possuem shebang.
+    (No Windows, isso geralmente não é necessário.)
+    """
+    for current_root, _, files in os.walk(root_dir):
+        for file in files:
+            if file.endswith(".py"):
+                filepath = os.path.join(current_root, file)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        first_line = f.readline()
+                    # Se o arquivo começa com shebang, definir permissão executável
+                    if first_line.startswith("#!"):
+                        os.chmod(filepath, 0o755)
+                except Exception as e:
+                    print(f"Warning: cannot change permission for {filepath}: {e}")
+
 def main():
     # Obtém o diretório onde o script está (raiz do projeto)
     script_dir = os.path.dirname(os.path.realpath(__file__))
@@ -21,11 +40,15 @@ def main():
     else:
         run_command(["sudo", "git", "submodule", "update", "--init", "--recursive"])
 
-    # Como todos os scripts foram convertidos para Python, não há necessidade de ajustar permissões de arquivos .sh
-    print("No need to adjust script permissions; all scripts are now in Python.")
+    # Define permissões de execução para o script "mockshadow"
+    mockshadow_path = os.path.join(script_dir, "mockshadow")
+    print("Setting execution permission for 'mockshadow'")
+    if system != "Windows":
+        os.chmod(mockshadow_path, 0o755)
+        # Opcional: ajuste de permissões para outros scripts Python com shebang
+        make_scripts_executable(script_dir)
 
     # Cria link simbólico para "mockshadow" de forma que possa ser chamado de qualquer diretório
-    mockshadow_path = os.path.join(script_dir, "mockshadow")
     if system == "Windows":
         # No Windows, tente criar um symlink (pode ser necessário executar como administrador ou habilitar o Developer Mode)
         symlink_path = os.path.join(script_dir, "mockshadow_link")
