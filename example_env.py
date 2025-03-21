@@ -1,4 +1,4 @@
-#python3
+#!/usr/bin/env python3
 #  Created on: 21 de jan de 2025
 #      Author: roger.moschiel
 
