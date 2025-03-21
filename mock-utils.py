@@ -388,8 +388,124 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
         mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Missing __MOCK_REPLACE_END")
         sys.exit(1)
 
-mock_replace_content(
-    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/__mock__FreeRTOSFATConfig.h",
-    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/FreeRTOSFATConfig.h",
+def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
+    """
+    Insere conteúdo de blocos de mock em um arquivo de destino, de acordo com marcadores
+    no arquivo de comandos (mock_file_cmds). São suportados dois tipos de blocos:
+
+      - MOCK_TOP: Bloco que deve ser inserido no topo do arquivo de destino.
+      - MOCK_BOTTOM: Bloco que deve ser inserido no fundo do arquivo de destino.
+
+    Para arquivos com extensão .h, o código tenta identificar os "include guards":
+      - Para MOCK_BOTTOM, procura a última ocorrência de "#endif" e insere logo antes.
+      - Para MOCK_TOP, procura a primeira linha que inicia com "#define" e insere logo depois.
+
+    Se ocorrer algum erro (por exemplo, bloco aninhado ou ausência do marcador de fim),
+    o script exibe uma mensagem e encerra.
+    """
+    # Verifica se os arquivos existem
+    if not os.path.isfile(mock_file_cmds):
+        print(f"Error: Not Found Source File '{mock_file_cmds}'")
+        sys.exit(1)
+    if not os.path.isfile(mock_file_to_create):
+        print(f"Error: Mock File '{mock_file_to_create}'")
+        sys.exit(1)
+    
+    inside_block = False
+    block_type = ""
+    MOCK_CMD = ""
+    count = 0
+    SRC_START_LINE = 0
+    SRC_END_LINE = 0
+    DEST_START_LINE = 0
+
+    # Lê todas as linhas do arquivo de comandos
+    with open(mock_file_cmds, "r", encoding="utf-8") as f:
+        cmds_lines = f.readlines()
+    
+    for line in cmds_lines:
+        count += 1
+        line_stripped = line.rstrip("\n")
+        
+        # Verifica se a linha indica início de um bloco (MOCK_TOP ou MOCK_BOTTOM)
+        m_start = re.match(r"^//__(MOCK_TOP|MOCK_BOTTOM)_START$", line_stripped)
+        if m_start:
+            if inside_block:
+                print(f"Erro: Bloco aninhado detectado em linha {count}. Não permitido.")
+                sys.exit(1)
+            inside_block = True
+            block_type = m_start.group(1)  # "MOCK_TOP" ou "MOCK_BOTTOM"
+            MOCK_CMD = line_stripped
+            SRC_START_LINE = count
+            if show_details:
+                if block_type == "MOCK_BOTTOM":
+                    print("      insert content at the BOTTOM")
+                elif block_type == "MOCK_TOP":
+                    print("      insert content at the TOP")
+            continue
+        
+        # Verifica se a linha indica fim de bloco
+        m_end = re.match(r"^//__(MOCK_TOP|MOCK_BOTTOM)_END$", line_stripped)
+        if m_end:
+            if not inside_block:
+                print(f"Erro: Marcador de fim encontrado sem bloco iniciado (linha {count}).")
+                sys.exit(1)
+            expected_end = f"//__{block_type}_END"
+            if line_stripped != expected_end:
+                print(f"Erro: Marcador de fim '{line_stripped}' não corresponde ao início '{MOCK_CMD}' (linha {count}).")
+                sys.exit(1)
+            inside_block = False
+            SRC_END_LINE = count
+
+            # Extrai o conteúdo do bloco do arquivo de comandos (linhas do início ao fim do bloco)
+            block_content = cmds_lines[SRC_START_LINE - 1 : SRC_END_LINE]
+            
+            # Determina a linha de destino para a inserção no arquivo de destino
+            # Para arquivos .h, tenta identificar os include guards
+            if block_type == "MOCK_BOTTOM":
+                if mock_file_to_create.endswith(".h"):
+                    with open(mock_file_to_create, "r", encoding="utf-8") as f:
+                        dest_lines = f.readlines()
+                    # Procura a última ocorrência de "#endif"
+                    endif_lines = [i + 1 for i, l in enumerate(dest_lines) if "#endif" in l]
+                    if endif_lines:
+                        DEST_START_LINE = endif_lines[-1] - 1  # insere antes do #endif
+                    else:
+                        print("Aviso: Nenhum #endif encontrado. Inserindo no final do arquivo.")
+                        DEST_START_LINE = len(dest_lines)
+                else:
+                    with open(mock_file_to_create, "r", encoding="utf-8") as f:
+                        dest_lines = f.readlines()
+                    DEST_START_LINE = len(dest_lines)
+            elif block_type == "MOCK_TOP":
+                if mock_file_to_create.endswith(".h"):
+                    with open(mock_file_to_create, "r", encoding="utf-8") as f:
+                        dest_lines = f.readlines()
+                    # Procura a primeira linha que inicia com "#define"
+                    define_lines = [i + 1 for i, l in enumerate(dest_lines) if l.lstrip().startswith("#define")]
+                    if define_lines:
+                        DEST_START_LINE = define_lines[0] + 1  # insere logo após
+                    else:
+                        DEST_START_LINE = 1
+                else:
+                    DEST_START_LINE = 1
+            
+            # Insere o conteúdo extraído no arquivo de destino
+            with open(mock_file_to_create, "r", encoding="utf-8") as f:
+                target_lines = f.readlines()
+            new_content = target_lines[:DEST_START_LINE - 1] + block_content + target_lines[DEST_START_LINE - 1:]
+            with open(mock_file_to_create, "w", encoding="utf-8") as f:
+                f.writelines(new_content)
+            continue
+    # Final do loop de leitura
+    
+    if inside_block:
+        print(f"Erro: Bloco iniciado com '{MOCK_CMD}' não foi encerrado corretamente.")
+        sys.exit(1)
+
+
+insert_mock_top_bottom(
+    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/__mock__FreeRTOSConfig.h",
+    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/FreeRTOSConfig.h",
     True
 )
