@@ -53,21 +53,23 @@ def copy_directory_content(src: str, dest: str):
         else:
             shutil.copy2(src_item, dest_item)
 
-def clone_project_tree(dir_original_project: str, dir_shadow_mocks: str):
+def clone_project_tree():
     """
     Verifica se o diretório de origem é válido e clona a árvore de
     diretórios (estrutura sem arquivos) de 'dir_original_project' para 'dir_shadow_mocks'.
     """
-    if not os.path.isdir(dir_original_project):
-        print(f"Erro: '{dir_original_project}' não é um diretório válido.")
+    print("Cloning Project Tree")
+    if not os.path.isdir(env.DIR_ORIGINAL_PROJECT):
+        print(f"Erro: '{env.DIR_ORIGINAL_PROJECT}' não é um diretório válido.")
         sys.exit(1)
 
-    for root, dirs, _ in os.walk(dir_original_project):
+    for root, dirs, _ in os.walk(env.DIR_ORIGINAL_PROJECT):
         for d in dirs:
             # Calcula o caminho relativo do diretório em relação ao projeto original
-            rel_path = os.path.relpath(os.path.join(root, d), dir_original_project)
-            new_dir = os.path.join(dir_shadow_mocks, rel_path)
+            rel_path = os.path.relpath(os.path.join(root, d), env.DIR_ORIGINAL_PROJECT)
+            new_dir = os.path.join(env.DIR_SHADOW_MOCKS, rel_path)
             os.makedirs(new_dir, exist_ok=True)
+    print("Cloning Project Tree Complete!")
 
 def list_mocks():
     print("Mock List")
@@ -362,6 +364,9 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
             
             # Extrai o conteúdo do arquivo de comandos entre SRC_START_LINE e SRC_END_LINE
             extracted_content = cmds_lines[SRC_START_LINE - 1:SRC_END_LINE]
+            # Garante que tenha um '\n' no final
+            if extracted_content and not extracted_content[-1].endswith('\n'):
+                extracted_content[-1] += '\n'
             # Escreve esse conteúdo em um arquivo temporário
             with tempfile.NamedTemporaryFile(delete=False, mode="w", encoding=ENCODING) as tmp_file:
                 tmp_file.writelines(extracted_content)
@@ -461,6 +466,9 @@ def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_d
 
             # Extrai o conteúdo do bloco do arquivo de comandos (linhas do início ao fim do bloco)
             block_content = cmds_lines[SRC_START_LINE - 1 : SRC_END_LINE]
+            # Garante que tenha um '\n' no final
+            if block_content and not block_content[-1].endswith('\n'):
+                block_content[-1] += '\n'
             
             # Determina a linha de destino para a inserção no arquivo de destino
             # Para arquivos .h, tenta identificar os include guards

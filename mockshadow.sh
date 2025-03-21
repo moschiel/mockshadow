@@ -2,12 +2,14 @@
 #  Created on: 21 de jan de 2025
 #      Author: roger.moschiel
 
+
 set -e
 
 # Obtém o diretório real onde o script está armazenado (seguindo o link simbólico)
 SCRIPT_MOCKSHADOW_DIR="$(dirname "$(readlink -f "$0")")"
 
-source "$SCRIPT_MOCKSHADOW_DIR/definitions.sh"
+source "$SCRIPT_MOCKSHADOW_DIR/env.sh"
+source "$SCRIPT_MOCKSHADOW_DIR/mock-utils.sh"
 
 # Flags to control execution
 RUN_MOCK=false
