@@ -7,6 +7,7 @@ import shutil
 import sys
 import re
 import subprocess
+import tempfile
 import env # Variaveis de ambiente env.py
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -258,8 +259,137 @@ def mock_remove_content(mock_file_cmds: str, mock_file_to_create: str, show_deta
                 with open(mock_file_to_create, 'w', encoding='utf-8') as mf:
                     mf.writelines(new_lines)
 
-mock_remove_content(
-    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/__mock__FreeRTOSConfig.h",
-    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/FreeRTOSConfig.h",
+def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
+    """
+    Processa o arquivo de comandos de mock (mock_file_cmds) e substitui blocos de conteúdo
+    no arquivo de mock (mock_file_to_create) conforme instruções do tipo:
+    
+      __MOCK_REPLACE_(START|LINE): <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      ... (linhas intermediárias) ...
+      //__MOCK_REPLACE_END
+      
+    Para cada bloco, a função:
+      - Determina o bloco (linhas SRC_START_LINE a SRC_END_LINE) no arquivo de comandos;
+      - Chama o extractor (versão Python, extract.py) para obter DEST_START_LINE e DEST_END_LINE
+        no arquivo de mock a ser atualizado;
+      - Extrai o conteúdo do bloco do arquivo de comandos e insere esse conteúdo
+        no arquivo de mock, substituindo as linhas entre DEST_START_LINE e DEST_END_LINE.
+    
+    Se ocorrer algum erro (como instrução aninhada ou falta de __MOCK_REPLACE_END),
+    a função chama mock_err_msg() e encerra.
+    """
+    # Verifica se os arquivos existem
+    if not os.path.isfile(mock_file_cmds):
+        print(f"Error: Not Found Source File '{mock_file_cmds}'")
+        sys.exit(1)
+    if not os.path.isfile(mock_file_to_create):
+        print(f"Error: Mock File '{mock_file_to_create}'")
+        sys.exit(1)
+    
+    inside_mock_block = False
+    MOCK_CMD = ""
+    count = 0
+    SRC_START_LINE = 0
+    SRC_END_LINE = 0
+    REPLACE_MODE = ""
+    
+    # Lê todas as linhas do arquivo de comandos (preservando quebras de linha)
+    with open(mock_file_cmds, "r", encoding="utf-8") as f:
+        cmds_lines = f.readlines()
+    
+    # Itera sobre cada linha (contabilizando o número da linha)
+    for line in cmds_lines:
+        count += 1
+        line = line.rstrip("\n")
+        
+        # Procura instruções do tipo __MOCK_REPLACE_(START|LINE): <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+        pattern = r"__MOCK_REPLACE_(START|LINE):\s+(\S+)\s+(\S+)(\s+.*)?"
+        m = re.search(pattern, line)
+        if m:
+            if inside_mock_block:
+                mock_err_msg(count, mock_file_cmds, line, "Nested instruction, expected __MOCK_REPLACE_END")
+                sys.exit(1)
+            inside_mock_block = True
+            MOCK_CMD = line
+            SRC_START_LINE = count
+            
+            REPLACE_MODE = m.group(1)  # "START" ou "LINE"
+            EXTRACT_TYPE = m.group(2)
+            EXTRACT_NAME = m.group(3)
+            EXTRA_ARGS = m.group(4) if m.group(4) is not None else ""
+            # Adiciona o argumento "lines" e processa os extra args
+            EXTRA_ARGS = "lines " + mount_extractor_extra_args(EXTRA_ARGS)
+            
+            if show_details:
+                print(f"      replace original {EXTRACT_TYPE} '{EXTRACT_NAME}'")
+        
+        # Verifica se a linha marca o fim do bloco ou, no modo LINE, finaliza imediatamente
+        elif (line.strip() == "//__MOCK_REPLACE_END" or REPLACE_MODE == "LINE"):
+            if not inside_mock_block:
+                mock_err_msg(count, mock_file_cmds, line, "Missing initial __MOCK_REPLACE_START:")
+                sys.exit(1)
+            REPLACE_MODE = ""  # Reseta o modo
+            inside_mock_block = False
+            SRC_END_LINE = count
+            
+            # Chama o extractor (versão Python, extract.py) para obter DEST_START_LINE e DEST_END_LINE
+            extractor_dir = os.path.join(script_dir, "clang-code-extractor")
+            cmd = [sys.executable, "extract.py", EXTRACT_TYPE, EXTRACT_NAME, mock_file_to_create] + EXTRA_ARGS.split()
+            try:
+                result = subprocess.run(cmd, cwd=extractor_dir, capture_output=True, text=True)
+            except Exception as e:
+                print(f"Error executing extractor: {e}")
+                sys.exit(1)
+            text_extracted = (result.stdout + result.stderr).strip()
+            status = result.returncode
+            if status != 0:
+                mock_err_msg(count, mock_file_cmds, MOCK_CMD, text_extracted)
+                sys.exit(status)
+            
+            # Espera-se que a saída seja do formato "<DEST_START_LINE>;<DEST_END_LINE>"
+            parts = text_extracted.split(";")
+            if len(parts) < 2:
+                print(f"Error: Could not parse extractor output: {text_extracted}")
+                sys.exit(1)
+            try:
+                DEST_START_LINE = int(parts[0].strip())
+                DEST_END_LINE = int(parts[1].strip())
+            except ValueError:
+                print(f"Error: Invalid destination line numbers: {text_extracted}")
+                sys.exit(1)
+            
+            # Extrai o conteúdo do arquivo de comandos entre SRC_START_LINE e SRC_END_LINE
+            extracted_content = cmds_lines[SRC_START_LINE - 1:SRC_END_LINE]
+            # Escreve esse conteúdo em um arquivo temporário
+            with tempfile.NamedTemporaryFile(delete=False, mode="w", encoding="utf-8") as tmp_file:
+                tmp_file.writelines(extracted_content)
+                temp_file_path = tmp_file.name
+            
+            # Atualiza o arquivo de mock (mock_file_to_create):
+            # - Mantém as linhas antes de DEST_START_LINE
+            # - Insere o conteúdo do arquivo temporário no lugar das linhas de DEST_START_LINE até DEST_END_LINE
+            # - Mantém as linhas após DEST_END_LINE
+            with open(mock_file_to_create, "r", encoding="utf-8") as mf:
+                mock_file_lines = mf.readlines()
+            new_content = []
+            new_content.extend(mock_file_lines[:DEST_START_LINE - 1])
+            with open(temp_file_path, "r", encoding="utf-8") as tf:
+                temp_lines = tf.readlines()
+            new_content.extend(temp_lines)
+            new_content.extend(mock_file_lines[DEST_END_LINE:])
+            with open(mock_file_to_create, "w", encoding="utf-8") as mf:
+                mf.writelines(new_content)
+            
+            # Remove o arquivo temporário
+            os.remove(temp_file_path)
+    
+    # Verifica se algum bloco ficou aberto sem encerramento
+    if inside_mock_block:
+        mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Missing __MOCK_REPLACE_END")
+        sys.exit(1)
+
+mock_replace_content(
+    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/__mock__FreeRTOSFATConfig.h",
+    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/FreeRTOSFATConfig.h",
     True
 )
