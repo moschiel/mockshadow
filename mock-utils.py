@@ -5,8 +5,11 @@
 import os
 import shutil
 import sys
+import re
+import subprocess
 import env # Variaveis de ambiente env.py
 
+script_dir = os.path.dirname(os.path.abspath(__file__))
 
 def validate_file_exists(file_path: str):
     if not os.path.isfile(file_path):
@@ -161,4 +164,102 @@ def mock_err_msg(line_number, file, cmd, msg):
     print(f"Mock instruction: {cmd}")
     print(msg)
 
-mock_err_msg(8, "mock-utils.py", "//__MOCK_START: BLAUS", "deu merda")
+def mock_remove_content(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False):
+    """
+    Processa o arquivo de comandos de mock (mock_file_cmds) para remover conteúdo
+    do arquivo de mock (mock_file_to_create) de acordo com as instruções.
+    
+    Para cada linha que corresponda a:
+      __MOCK_REMOVE: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+    a função:
+      - Adiciona "lines" e os extra args processados via mount_extractor_extra_args().
+      - Chama o extractor (a versão Python, extract.py) no diretório SCRIPT_MOCKSHADOW_DIR/clang-code-extractor.
+      - Se o extractor retornar erro, chama mock_err_msg() e encerra.
+      - Se bem-sucedido, a saída deverá ser "<START_LINE>;<END_LINE>".
+      - Atualiza o arquivo de mock, substituindo as linhas entre START_LINE e END_LINE
+        pela instrução de mock (a linha atual).
+    """
+    # Verifica se os arquivos existem
+    if not os.path.isfile(mock_file_cmds):
+        print(f"Error: Not Found Source File '{mock_file_cmds}'")
+        sys.exit(1)
+    if not os.path.isfile(mock_file_to_create):
+        print(f"Error: Mock File '{mock_file_to_create}'")
+        sys.exit(1)
+    
+    count = 0
+    with open(mock_file_cmds, 'r', encoding='utf-8') as f:
+        for line in f:
+            # Remove a quebra de linha no final, se houver
+            line = line.rstrip('\n')
+            count += 1
+
+            # Regex para capturar: __MOCK_REMOVE: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+            pattern = r"__MOCK_REMOVE:\s+(\S+)\s+(\S+)(\s+.*)?"
+            m = re.search(pattern, line)
+            if m:
+                extract_type = m.group(1)
+                extract_name = m.group(2)
+                extra_args = m.group(3) if m.group(3) is not None else ""
+                # Adiciona "lines" e processa os extra args
+                extra_args = "lines " + mount_extractor_extra_args(extra_args)
+                
+                if show_details:
+                    print(f"      Remove original {extract_type} '{extract_name}'")
+                
+                # Define o diretório do extractor a partir da variável de ambiente SCRIPT_MOCKSHADOW_DIR
+                extractor_dir = os.path.join(script_dir, "clang-code-extractor")
+                # Monta o comando usando a versão Python do extractor (extract.py)
+                # Usamos sys.executable para invocar o Python atual
+                cmd = [sys.executable, "extract.py", extract_type, extract_name, mock_file_to_create] + extra_args.split()
+                
+                try:
+                    result = subprocess.run(cmd, cwd=extractor_dir, capture_output=True, text=True)
+                    text_extracted = (result.stdout + result.stderr).strip()
+                    status = result.returncode
+                except Exception as e:
+                    print(f"Error executing extractor: {e}")
+                    sys.exit(1)
+                
+                if status != 0:
+                    mock_err_msg(count, mock_file_cmds, line, text_extracted)
+                    sys.exit(status)
+                
+                # A saída deve estar no formato "<START_LINE>;<END_LINE>"
+                parts = text_extracted.split(";")
+                if len(parts) < 2:
+                    print(f"Error: Could not parse extractor output: {text_extracted}")
+                    sys.exit(1)
+                try:
+                    start_line = int(parts[0].strip())
+                    end_line = int(parts[1].strip())
+                except ValueError:
+                    print(f"Error: Invalid line numbers extracted: {text_extracted}")
+                    sys.exit(1)
+                
+                # Lê o conteúdo do arquivo de mock
+                with open(mock_file_to_create, 'r', encoding='utf-8') as mf:
+                    file_lines = mf.readlines()
+                
+                # Monta o novo conteúdo:
+                # - Linhas antes de start_line: mantêm
+                # - Linha start_line: substituída pela instrução de mock (a linha atual)
+                # - Linhas de start_line+1 até end_line: descartadas
+                # - Linhas após end_line: mantidas
+                new_lines = []
+                for i, content in enumerate(file_lines, start=1):
+                    if i < start_line:
+                        new_lines.append(content)
+                    elif i == start_line:
+                        new_lines.append(line + "\n")
+                    elif i > end_line:
+                        new_lines.append(content)
+                # Escreve o novo conteúdo de volta para o arquivo
+                with open(mock_file_to_create, 'w', encoding='utf-8') as mf:
+                    mf.writelines(new_lines)
+
+mock_remove_content(
+    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/__mock__FreeRTOSConfig.h",
+    "/home/moschiel/Development/EmulandoMSC/MSC_Simulator/MOCK_TREE/src/Include/FreeRTOSConfig.h",
+    True
+)
