@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 import os
 import subprocess
 import sys
@@ -40,14 +40,11 @@ def main():
     else:
         run_command(["sudo", "git", "submodule", "update", "--init", "--recursive"])
 
-    # Define permissões de execução para o script "mockshadow"
-    mockshadow_path = os.path.join(script_dir, "mockshadow")
-    print("Setting execution permission for 'mockshadow'")
     if system != "Windows":
-        os.chmod(mockshadow_path, 0o755)
-        # Opcional: ajuste de permissões para outros scripts Python com shebang
+        print("Setting execution permission for scripts")
         make_scripts_executable(script_dir)
 
+    mockshadow_path = os.path.join(script_dir, "mockshadow.py")
     # Cria link simbólico para "mockshadow" de forma que possa ser chamado de qualquer diretório
     if system == "Windows":
         # No Windows, tente criar um symlink (pode ser necessário executar como administrador ou habilitar o Developer Mode)
