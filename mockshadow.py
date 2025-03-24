@@ -13,6 +13,7 @@ script_mockshadow_dir = os.path.dirname(os.path.realpath(__file__))
 # Presume que env.py e mock_utils.py estão no mesmo diretório do script
 
 # Flags para controlar a execução
+run_version = False
 run_mock = False
 run_remock = False
 run_build = False
@@ -27,7 +28,9 @@ run_clone_project = False
 
 # Processa os argumentos da linha de comando
 for arg in sys.argv[1:]:
-    if arg == "details":
+    if arg == "version":
+        run_version = True
+    elif arg == "details":
         show_details = True
     elif arg == "run":
         run_mock = True
@@ -57,6 +60,8 @@ for arg in sys.argv[1:]:
         print(f"Warning: Unknown argument '{arg}'")
 
 # Executa as funções conforme as flags
+if run_version:
+    print("mockshadow version 1.0")
 
 if run_list:
     mock_utils.list_mocks()
