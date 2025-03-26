@@ -52,6 +52,15 @@ def copy_directory_content(src: str, dest: str):
             shutil.copytree(src_item, dest_item)
         else:
             shutil.copy2(src_item, dest_item)
+    
+def remover_git_dirs(caminho_base):
+    for root, dirs, files in os.walk(caminho_base):
+        if '.git' in dirs:
+            caminho_git = os.path.join(root, '.git')
+            print(f'Removendo: {caminho_git}')
+            shutil.rmtree(caminho_git)
+            # Remove da lista para evitar que o os.walk entre nessa pasta
+            dirs.remove('.git')
 
 def clone_project_tree():
     """
@@ -102,6 +111,9 @@ def clone_project():
     #echo "Cloning FreeRTOS+FAT"
     #copy_directory_content "$SCRIPT_MOCKSHADOW_DIR/FreeRTOS+FAT" "$SCRIPT_MOCKSHADOW_DIR/MOCKED_PROJECT/FreeRTOS+FAT"
     
+    print(f"Removing '.git' directories from cloned project")
+    remover_git_dirs(env.DIR_TEMP_PROJECT)
+
     print("Cloning Complete")
 
 def mount_extractor_extra_args(custom_extra_args: str) -> str:
