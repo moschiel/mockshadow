@@ -16,14 +16,45 @@
   "MOCK_REPLACE_LINE": {
     "prefix": "mrl",
     "body": [
-      "//__MOCK_REPLACE_LINE: macro ${1:name}"
+      "//__MOCK_REPLACE_LINE: macro ${1:name}",
+      "${0:// conteúdo de linha única aqui}"
+    ]
+  },
+  "MOCK_ADD_BEFORE_START": {
+    "prefix": "mabs",
+    "body": [
+      "//__MOCK_ADD_BEFORE_START: ${1:type} ${2:name}",
+      "${0:// conteúdo aqui}",
+      "//__MOCK_ADD_BEFORE_END"
+    ]
+  },
+  "MOCK_ADD_BEFORE_LINE": {
+    "prefix": "mabl",
+    "body": [
+      "//__MOCK_ADD_BEFORE_LINE: ${1:type} ${2:name}",
+      "${0:// conteúdo de linha única aqui}"
+    ]
+  },
+  "MOCK_ADD_AFTER_START": {
+    "prefix": "maas",
+    "body": [
+      "//__MOCK_ADD_AFTER_START: ${1:type} ${2:name}",
+      "${0:// conteúdo aqui}",
+      "//__MOCK_ADD_AFTER_END"
+    ]
+  },
+  "MOCK_ADD_AFTER_LINE": {
+    "prefix": "maal",
+    "body": [
+      "//__MOCK_ADD_AFTER_LINE: ${1:type} ${2:name}",
+      "${0:// conteúdo de linha única aqui}"
     ]
   },
   "MOCK_TOP_START": {
     "prefix": "mts",
     "body": [
       "//__MOCK_TOP_START",
-      "",
+      "${0:// conteúdo aqui}",
       "//__MOCK_TOP_END"
     ]
   },
@@ -31,7 +62,7 @@
     "prefix": "mbs",
     "body": [
       "//__MOCK_BOTTOM_START",
-      "",
+      "${0:// conteúdo aqui}",
       "//__MOCK_BOTTOM_END"
     ]
   },

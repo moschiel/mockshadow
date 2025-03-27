@@ -280,9 +280,12 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
     Processa o arquivo de comandos de mock (mock_file_cmds) e substitui blocos de conteúdo
     no arquivo de mock (mock_file_to_create) conforme instruções do tipo:
     
-      __MOCK_REPLACE_(START|LINE): <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
-      ... (linhas intermediárias) ...
+      __MOCK_REPLACE_START: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      ... (conteudo multilinha que irá sobrescrever o conteudo original ) ...
       //__MOCK_REPLACE_END
+
+      __MOCK_REPLACE_LINE: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      ... (conteudo com uma unica linha que irá sobrescrever o conteudo original) ...
       
     Para cada bloco, a função:
       - Determina o bloco (linhas SRC_START_LINE a SRC_END_LINE) no arquivo de comandos;
@@ -407,7 +410,7 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
         mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Missing __MOCK_REPLACE_END")
         sys.exit(1)
 
-def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
+def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
     """
     Insere conteúdo de blocos de mock em um arquivo de destino, de acordo com marcadores
     no arquivo de comandos (mock_file_cmds). São suportados dois tipos de blocos:
@@ -525,6 +528,194 @@ def insert_mock_top_bottom(mock_file_cmds: str, mock_file_to_create: str, show_d
         print(f"Erro: Bloco iniciado com '{MOCK_CMD}' não foi encerrado corretamente.")
         sys.exit(1)
 
+def mock_add_content_before_or_after(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
+    """
+    Processa o arquivo de comandos de mock (mock_file_cmds) e insere blocos de conteúdo
+    no arquivo de mock (mock_file_to_create) conforme as instruções:
+
+      __MOCK_ADD_BEFORE_START: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      //multine content to add before
+      __MOCK_ADD_BEFORE_END
+
+      __MOCK_ADD_AFTER_START: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      //multiline content to add after
+      __MOCK_ADD_AFTER_END
+
+      __MOCK_ADD_BEFORE_LINE: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      //sigle line content to add before
+
+      __MOCK_ADD_AFTER_LINE: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      //single line content to add after
+
+    Para cada comando, a função:
+      - Identifica o bloco (para comandos START, do marcador inicial até o marcador de fim;
+        para comandos LINE, a linha imediatamente após o comando);
+      - Chama o extractor (extract.py) para obter DEST_START_LINE e DEST_END_LINE
+        no arquivo de mock a ser atualizado;
+      - Insere o conteúdo extraído (incluindo os próprios marcadores) no arquivo de mock:
+          - Para comandos BEFORE, insere logo acima da linha DEST_START_LINE;
+          - Para comandos AFTER, insere logo após a linha DEST_END_LINE.
+    """
+
+    # Verifica se os arquivos existem
+    if not os.path.isfile(mock_file_cmds):
+        print(f"Error: Not Found Source File '{mock_file_cmds}'")
+        sys.exit(1)
+    if not os.path.isfile(mock_file_to_create):
+        print(f"Error: Mock File '{mock_file_to_create}' not found.")
+        sys.exit(1)
+    
+    # Lê todas as linhas do arquivo de comandos
+    with open(mock_file_cmds, "r", encoding=ENCODING) as f:
+        cmds_lines = f.readlines()
+    
+    line_count = 0
+    inside_block = False
+    command_position = ""  # "BEFORE" ou "AFTER"
+    replace_mode = ""      # "START" ou "LINE"
+    EXTRACT_TYPE = ""
+    EXTRACT_NAME = ""
+    EXTRA_ARGS = ""
+    block_content = []  # conteúdo do bloco, incluindo marcadores
+
+    while line_count < len(cmds_lines):
+        current_line = cmds_lines[line_count].rstrip("\n")
+        line_count += 1
+
+        if not inside_block:
+            # Verifica comandos multi-linha (START)
+            pattern_block = r"__MOCK_ADD_(BEFORE|AFTER)_START:\s+(\S+)\s+(\S+)(\s+.*)?"
+            m_block = re.search(pattern_block, current_line)
+            if m_block:
+                inside_block = True
+                command_position = m_block.group(1)  # BEFORE ou AFTER
+                replace_mode = "START"
+                EXTRACT_TYPE = m_block.group(2)
+                EXTRACT_NAME = m_block.group(3)
+                EXTRA_ARGS = m_block.group(4) if m_block.group(4) is not None else ""
+                EXTRA_ARGS = "lines " + mount_extractor_extra_args(EXTRA_ARGS)
+                # Guarda o marcador inicial como parte do bloco
+                block_content = [current_line + "\n"]
+                if show_details:
+                    print(f"      add content {command_position} {EXTRACT_TYPE} '{EXTRACT_NAME}'")
+                continue
+
+            # Verifica comandos de linha única (LINE)
+            pattern_line = r"__MOCK_ADD_(BEFORE|AFTER)_LINE:\s+(\S+)\s+(\S+)(\s+.*)?"
+            m_line = re.search(pattern_line, current_line)
+            if m_line:
+
+                command_position = m_line.group(1)  # BEFORE ou AFTER
+                replace_mode = "LINE"
+                EXTRACT_TYPE = m_line.group(2)
+                EXTRACT_NAME = m_line.group(3)
+                EXTRA_ARGS = m_line.group(4) if m_line.group(4) is not None else ""
+                EXTRA_ARGS = "lines " + mount_extractor_extra_args(EXTRA_ARGS)
+                # Guarda o comando e a próxima linha (conteúdo a adicionar)
+                block_content = [current_line + "\n"]
+                if line_count < len(cmds_lines):
+                    content_line = cmds_lines[line_count]
+                    line_count += 1
+                    block_content.append(content_line)
+                else:
+                    mock_err_msg(line_count, mock_file_cmds, current_line, "Expected content line after __MOCK_ADD_LINE marker")
+                    sys.exit(1)
+                if show_details:
+                    print(f"      add content {command_position} {EXTRACT_TYPE} '{EXTRACT_NAME}'")
+                # Processa imediatamente o comando de linha única
+                process_add_command(mock_file_to_create, EXTRACT_TYPE, EXTRACT_NAME, EXTRA_ARGS, block_content, command_position, show_details)
+                block_content = []
+                continue
+
+        else:
+            # Estamos dentro de um bloco multi-linha iniciado por __MOCK_ADD_?_START
+            if command_position == "BEFORE":
+                if current_line.strip() == "//__MOCK_ADD_BEFORE_END":
+                    block_content.append(current_line + "\n")
+                    inside_block = False
+                    process_add_command(mock_file_to_create, EXTRACT_TYPE, EXTRACT_NAME, EXTRA_ARGS, block_content, command_position, show_details)
+                    block_content = []
+                    continue
+                else:
+                    block_content.append(current_line + "\n")
+            elif command_position == "AFTER":
+                # Observação: conforme o padrão fornecido, o marcador de fim é "__MOCK_ADD_AFTER_END"
+                if current_line.strip() == "//__MOCK_ADD_AFTER_END":
+                    block_content.append(current_line + "\n")
+                    inside_block = False
+                    process_add_command(mock_file_to_create, EXTRACT_TYPE, EXTRACT_NAME, EXTRA_ARGS, block_content, command_position, show_details)
+                    block_content = []
+                    continue
+                else:
+                    block_content.append(current_line + "\n")
+    
+    if inside_block:
+        mock_err_msg(line_count, mock_file_cmds, block_content[0].strip(), "Block not terminated properly.")
+        sys.exit(1)
+
+
+def process_add_command(mock_file_to_create: str, EXTRACT_TYPE: str, EXTRACT_NAME: str, EXTRA_ARGS: str,
+                        block_content: list, command_position: str, show_details: bool = False) -> None:
+    """
+    Processa um comando de adição (antes ou depois), chamando o extractor para obter a posição
+    de destino e inserindo o conteúdo (incluindo os marcadores) no arquivo de mock.
+    """
+
+    # Define o diretório do extractor (supondo que 'script_dir' e 'extract.py' existam)
+    extractor_dir = os.path.join(script_dir, "clang-code-extractor")
+    cmd = [sys.executable, "extract.py", EXTRACT_TYPE, EXTRACT_NAME, mock_file_to_create] + EXTRA_ARGS.split()
+    try:
+        result = subprocess.run(cmd, cwd=extractor_dir, capture_output=True, text=True)
+    except Exception as e:
+        print(f"Error executing extractor: {e}")
+        sys.exit(1)
+    text_extracted = (result.stdout + result.stderr).strip()
+    status = result.returncode
+    if status != 0:
+        mock_err_msg(0, "", f"Extractor command for {EXTRACT_TYPE} '{EXTRACT_NAME}'", text_extracted)
+        sys.exit(status)
+    
+    # A saída do extractor deve estar no formato "<DEST_START_LINE>;<DEST_END_LINE>"
+    parts = text_extracted.split(";")
+    if len(parts) < 2:
+        print(f"Error: Could not parse extractor output: {text_extracted}")
+        sys.exit(1)
+    try:
+        DEST_START_LINE = int(parts[0].strip())
+        DEST_END_LINE = int(parts[1].strip())
+    except ValueError:
+        print(f"Error: Invalid destination line numbers: {text_extracted}")
+        sys.exit(1)
+    
+    # Lê o conteúdo atual do arquivo de mock a ser atualizado
+    with open(mock_file_to_create, "r", encoding=ENCODING) as mf:
+        target_lines = mf.readlines()
+    
+    # Define a posição de inserção com base no tipo do comando:
+    # - BEFORE: insere logo acima de DEST_START_LINE
+    # - AFTER: insere logo após DEST_END_LINE
+    if command_position == "BEFORE":
+        insert_index = DEST_START_LINE - 1
+    elif command_position == "AFTER":
+        insert_index = DEST_END_LINE
+    else:
+        print("Error: Invalid command position.")
+        sys.exit(1)
+    
+    # Garante que a última linha do bloco tenha '\n'
+    if block_content and not block_content[-1].endswith('\n'):
+        block_content[-1] += '\n'
+
+    # Constrói o novo conteúdo do arquivo
+    new_content = target_lines[:insert_index] + block_content + target_lines[insert_index:]
+    with open(mock_file_to_create, "w", encoding=ENCODING) as mf:
+        mf.writelines(new_content)
+    
+    #if show_details:
+    #    pos_desc = "before" if command_position == "BEFORE" else "after"
+    #    print(f"Inserted content {pos_desc} line {insert_index+1} in '{mock_file_to_create}'")
+
+
 def insert_mock_original_content(original_file: str, mock_file_to_create: str, show_details: bool):
     print("TODO: insert_mock_original_content")
 
@@ -608,7 +799,8 @@ def mock_project(*args):
                         # Processa as seções: remove, substitui e insere conteúdo
                         mock_remove_content(mock_file, mock_file_to_create, show_details)
                         mock_replace_content(mock_file, mock_file_to_create, show_details)
-                        insert_mock_top_bottom(mock_file, mock_file_to_create, show_details)
+                        insert_mock_top_or_bottom(mock_file, mock_file_to_create, show_details)
+                        mock_add_content_before_or_after(mock_file, mock_file_to_create, show_details)
                     else:
                         # Cria o arquivo de mock com o conteúdo do arquivo __mock__
                         shutil.copy2(mock_file, mock_file_to_create)
