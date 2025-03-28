@@ -34,24 +34,88 @@ def remove_directory(directory: str):
     if os.path.isdir(directory):
         shutil.rmtree(directory)
 
-def copy_directory_content(src: str, dest: str):
+def copy_project_content(src: str, dest: str, compare_dates: bool = False):
     """
-    Remove o diretório de destino (se existir), cria-o e copia recursivamente
-    o conteúdo do diretório 'src' para 'dest', replicando:
-      rm -rf "$DEST"
-      mkdir -p "$DEST"
-      cp -r "$SRC/"* "$DEST"
+    Copia recursivamente o conteúdo de 'src' para 'dest', ignorando os itens listados em 'exclude-dirs.txt'.
+    Quando 'compare_dates' é False (comportamento padrão):
+      - Remove o diretório de destino (se existir), recriando-o e copiando tudo.
+    Quando 'compare_dates' é True:
+      - Atualiza somente os arquivos que não existem em 'dest' ou cujas datas de modificação diferem.
+      - Para diretórios, se já existirem, a função é chamada recursivamente.
     """
-    if os.path.exists(dest):
-        shutil.rmtree(dest)
-    os.makedirs(dest)
-    for item in os.listdir(src):
-        src_item = os.path.join(src, item)
-        dest_item = os.path.join(dest, item)
-        if os.path.isdir(src_item):
-            shutil.copytree(src_item, dest_item)
-        else:
-            shutil.copy2(src_item, dest_item)
+    import os
+    import shutil
+
+    # Lê os itens a serem excluídos do arquivo
+    exclude_file = "exclude-dirs.txt"
+    exclude_items = set()
+    if os.path.isfile(exclude_file):
+        with open(exclude_file, "r", encoding="utf-8") as f:
+            exclude_items = {line.strip().replace("\\", "/") for line in f if line.strip()}
+    else:
+        print(f"Aviso: Arquivo '{exclude_file}' não encontrado. Nenhuma exclusão será aplicada.")
+
+    def ignore_func(current, names):
+        """
+        Função auxiliar para o copytree: calcula o caminho relativo do diretório atual
+        em relação a 'src' e, para cada item, verifica se ele deve ser ignorado.
+        """
+        rel_current = os.path.relpath(current, src).replace("\\", "/")
+        ignored = []
+        for name in names:
+            candidate = name if rel_current == "." else f"{rel_current}/{name}"
+            if candidate in exclude_items:
+                ignored.append(name)
+        return ignored
+
+    if not compare_dates:
+        # Comportamento original: remove o diretório de destino e copia tudo de src
+        if os.path.exists(dest):
+            shutil.rmtree(dest)
+        os.makedirs(dest)
+
+        for item in os.listdir(src):
+            if item in exclude_items:
+                print(f"Ignorando item: {item}")
+                continue
+
+            src_item = os.path.join(src, item)
+            dest_item = os.path.join(dest, item)
+            if os.path.isdir(src_item):
+                shutil.copytree(src_item, dest_item, ignore=ignore_func)
+            else:
+                shutil.copy2(src_item, dest_item)
+    else:
+        # Comportamento incremental: só copia se a data de modificação for diferente
+        if not os.path.exists(dest):
+            os.makedirs(dest)
+
+        for item in os.listdir(src):
+            if item in exclude_items:
+                print(f"Ignorando item: {item}")
+                continue
+
+            src_item = os.path.join(src, item)
+            dest_item = os.path.join(dest, item)
+
+            if os.path.isdir(src_item):
+                if not os.path.exists(dest_item):
+                    shutil.copytree(src_item, dest_item, ignore=ignore_func)
+                else:
+                    # Atualiza recursivamente o conteúdo do diretório
+                    copy_project_content(src_item, dest_item, compare_dates=True)
+            else:
+                # Se o arquivo já existe, compara as datas de modificação
+                if os.path.exists(dest_item):
+                    src_mtime = os.path.getmtime(src_item)
+                    dest_mtime = os.path.getmtime(dest_item)
+                    if src_mtime != dest_mtime:
+                        shutil.copy2(src_item, dest_item)
+                else:
+                    shutil.copy2(src_item, dest_item)
+
+
+
     
 def remover_git_dirs(caminho_base):
     for root, dirs, files in os.walk(caminho_base):
@@ -64,20 +128,38 @@ def remover_git_dirs(caminho_base):
 
 def clone_project_tree():
     """
-    Verifica se o diretório de origem é válido e clona a árvore de
-    diretórios (estrutura sem arquivos) de 'dir_original_project' para 'dir_shadow_mocks'.
+    Clona a árvore de diretórios de 'DIR_ORIGINAL_PROJECT' para 'DIR_SHADOW_MOCKS',
+    ignorando os diretórios listados em 'exclude-dirs.txt'.
     """
     print("Cloning Project Tree")
+
     if not os.path.isdir(env.DIR_ORIGINAL_PROJECT):
         print(f"Erro: '{env.DIR_ORIGINAL_PROJECT}' não é um diretório válido.")
         sys.exit(1)
 
+    # Lê os diretórios a serem excluídos do arquivo
+    exclude_file = os.path.join(env.DIR_MOCK_SHADOW_PROJECT,"exclude-dirs.txt")
+    exclude_dirs = set()
+
+    if os.path.isfile(exclude_file):
+        with open(exclude_file, "r", encoding="utf-8") as f:
+            exclude_dirs = {line.strip().replace("\\", "/") for line in f if line.strip()}
+    else:
+        print(f"Aviso: Arquivo '{exclude_file}' não encontrado. Nenhum diretório será excluído.")
+
     for root, dirs, _ in os.walk(env.DIR_ORIGINAL_PROJECT):
+        # Caminho relativo do diretório atual
+        rel_root = os.path.relpath(root, env.DIR_ORIGINAL_PROJECT).replace("\\", "/")
+
+        # Atualiza a lista 'dirs' no local para evitar descer em subdiretórios excluídos
+        dirs[:] = [d for d in dirs
+                   if os.path.normpath(os.path.join(rel_root, d)).replace("\\", "/") not in exclude_dirs]
+
         for d in dirs:
-            # Calcula o caminho relativo do diretório em relação ao projeto original
             rel_path = os.path.relpath(os.path.join(root, d), env.DIR_ORIGINAL_PROJECT)
             new_dir = os.path.join(env.DIR_SHADOW_MOCKS, rel_path)
             os.makedirs(new_dir, exist_ok=True)
+
     print("Cloning Project Tree Complete!")
 
 def list_mocks():
@@ -95,9 +177,9 @@ def list_mocks():
     
     print("Mock List Complete!")
 
-def clone_project():
+def clone_project(compare_dates: bool = False):
     print(f"Cloning Project {env.DIR_ORIGINAL_PROJECT} to {env.DIR_TEMP_PROJECT}")
-    copy_directory_content(env.DIR_ORIGINAL_PROJECT, env.DIR_TEMP_PROJECT)
+    copy_project_content(env.DIR_ORIGINAL_PROJECT, env.DIR_TEMP_PROJECT, compare_dates)
     
     print("Cloning FreeRTOS")
     print(" ***** TODO: DEPENDENCIA DO PROJETO NAO PODE FICAR AQUI ****")
@@ -106,10 +188,10 @@ def clone_project():
     
     src_freertos = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "FreeRTOS")
     dest_freertos = os.path.join(env.DIR_TEMP_PROJECT, "FreeRTOS")
-    copy_directory_content(src_freertos, dest_freertos)
+    copy_project_content(src_freertos, dest_freertos, compare_dates)
     
     #echo "Cloning FreeRTOS+FAT"
-    #copy_directory_content "$SCRIPT_MOCKSHADOW_DIR/FreeRTOS+FAT" "$SCRIPT_MOCKSHADOW_DIR/MOCKED_PROJECT/FreeRTOS+FAT"
+    #copy_project_content "$SCRIPT_MOCKSHADOW_DIR/FreeRTOS+FAT" "$SCRIPT_MOCKSHADOW_DIR/MOCKED_PROJECT/FreeRTOS+FAT"
     
     print(f"Removing '.git' directories from cloned project")
     remover_git_dirs(env.DIR_TEMP_PROJECT)
@@ -653,7 +735,6 @@ def mock_add_content_before_or_after(mock_file_cmds: str, mock_file_to_create: s
         mock_err_msg(line_count, mock_file_cmds, block_content[0].strip(), "Block not terminated properly.")
         sys.exit(1)
 
-
 def process_add_command(mock_file_to_create: str, EXTRACT_TYPE: str, EXTRACT_NAME: str, EXTRA_ARGS: str,
                         block_content: list, command_position: str, show_details: bool = False) -> None:
     """
@@ -715,7 +796,6 @@ def process_add_command(mock_file_to_create: str, EXTRACT_TYPE: str, EXTRACT_NAM
     #    pos_desc = "before" if command_position == "BEFORE" else "after"
     #    print(f"Inserted content {pos_desc} line {insert_index+1} in '{mock_file_to_create}'")
 
-
 def insert_mock_original_content(original_file: str, mock_file_to_create: str, show_details: bool):
     print("TODO: insert_mock_original_content")
 
@@ -763,6 +843,8 @@ def mock_project(*args):
     # Antes de mockar, se "remock" for solicitado, chama unmock_project()
     if is_remock:
         unmock_project()
+    else:
+        clone_project(True)
 
     print("Creating Mock Files ...")
     file_last_mock_timestamp = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "last_mock_timestamp.txt")
@@ -782,21 +864,24 @@ def mock_project(*args):
                 original_basename = mock_basename.replace("__mock__", "")
                 mock_file_to_create = os.path.join(mock_dir, original_basename)
 
-                # Se o arquivo a ser criado não existe ou se o arquivo __mock__ foi modificado após o último mock
-                if (not os.path.isfile(mock_file_to_create)) or (os.stat(mock_file).st_mtime > last_mock_timestamp):
+                # Remove DIR_SHADOW_MOCKS do caminho e junta com DIR_ORIGINAL_PROJECT para obter o arquivo original
+                partial_dir = os.path.relpath(mock_dir, env.DIR_SHADOW_MOCKS)
+                original_file = os.path.join(env.DIR_ORIGINAL_PROJECT, partial_dir, original_basename)
+                validate_file_exists(original_file)
+
+                
+                if ((not os.path.isfile(mock_file_to_create)) or                # Se o arquivo a ser criado não existe 
+                    (os.stat(mock_file).st_mtime > last_mock_timestamp) or      # ou se o arquivo __mock__ foi modificado após o último mock
+                    (os.stat(original_file).st_mtime > last_mock_timestamp)):   # ou se o arquivo original foi modificado após o último mock
+
                     mock_mode = check_file_mock_mode(mock_file)
                     rel_path = os.path.relpath(mock_file_to_create, env.DIR_MOCK_SHADOW_PROJECT)
                     print(f"  Creating {rel_path} (MOCK_MODE: {mock_mode})")
 
-                    # Remove DIR_SHADOW_MOCKS do caminho e junta com DIR_ORIGINAL_PROJECT para obter o arquivo original
-                    partial_dir = os.path.relpath(mock_dir, env.DIR_SHADOW_MOCKS)
-                    original_file = os.path.join(env.DIR_ORIGINAL_PROJECT, partial_dir, original_basename)
-                    validate_file_exists(original_file)
-
                     if mock_mode == "copy":
                         # Cria o arquivo de mock como cópia do arquivo original
                         shutil.copy2(original_file, mock_file_to_create)
-                        # Processa as seções: remove, substitui e insere conteúdo
+                        # Processa as seções: remove, replace, insert top/bottom, add before/after
                         mock_remove_content(mock_file, mock_file_to_create, show_details)
                         mock_replace_content(mock_file, mock_file_to_create, show_details)
                         insert_mock_top_or_bottom(mock_file, mock_file_to_create, show_details)
