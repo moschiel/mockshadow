@@ -9,6 +9,7 @@ import re
 import subprocess
 import tempfile
 import time
+import json
 import env # Variaveis de ambiente env.py
 
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -114,8 +115,6 @@ def copy_project_content(src: str, dest: str, compare_dates: bool = False):
                 else:
                     shutil.copy2(src_item, dest_item)
 
-
-
     
 def remover_git_dirs(caminho_base):
     for root, dirs, files in os.walk(caminho_base):
@@ -197,6 +196,49 @@ def clone_project(compare_dates: bool = False):
     remover_git_dirs(env.DIR_TEMP_PROJECT)
 
     print("Cloning Complete")
+
+import sys
+
+import sys
+
+def get_project_configs():
+    """
+    Reads the mockshadow-config.json and returns the configuration dictionary.
+    Exits the application if the file is missing or contains invalid JSON.
+    """
+    file_config_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "mockshadow-config.json")
+
+    if not os.path.isfile(file_config_json):
+        sys.exit("fatal: not a mockshadow project (missing mockshadow-config.json)")
+
+    try:
+        with open(file_config_json, "r", encoding=ENCODING) as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        sys.exit("fatal: invalid JSON in mockshadow-config.json")
+
+
+def update_project_config_param(key, value):
+    """
+    Atualiza um parâmetro específico no mockshadow-config.json.
+    Cria a chave se ela não existir.
+    """
+    file_config_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "mockshadow-config.json")
+
+    if not os.path.isfile(file_config_json):
+        sys.exit("fatal: not a mockshadow project (missing mockshadow-config.json)")
+
+    try:
+        with open(file_config_json, "r", encoding=ENCODING) as f:
+            config_data = json.load(f)
+    except json.JSONDecodeError:
+        sys.exit("fatal: invalid JSON in mockshadow-config.json")
+
+    config_data[key] = value
+
+    with open(file_config_json, "w", encoding=ENCODING) as f:
+        json.dump(config_data, f, indent=4)
+
 
 def mount_extractor_extra_args(custom_extra_args: str) -> str:
     # Remove espaços à esquerda dos argumentos customizados
@@ -829,6 +871,8 @@ def unmock_project():
     clone_project()
 
 def mock_project(*args):
+    configs = get_project_configs()
+
     # Parse arguments
     show_details = False
     is_remock = False
@@ -847,12 +891,7 @@ def mock_project(*args):
         clone_project(True)
 
     print("Creating Mock Files ...")
-    file_last_mock_timestamp = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "last_mock_timestamp.txt")
-    if os.path.isfile(file_last_mock_timestamp):
-        with open(file_last_mock_timestamp, "r", encoding=ENCODING) as f:
-            last_mock_timestamp = int(f.read().strip())
-    else:
-        last_mock_timestamp = 0
+    last_mock_timestamp = configs.get("lastMockTimestamp", 0)
 
     # Itera sobre todos os arquivos .c e .h que iniciam com "__mock__" em DIR_SHADOW_MOCKS
     for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
@@ -894,8 +933,7 @@ def mock_project(*args):
 
     # Atualiza o timestamp do último mock
     last_mock_timestamp = int(time.time())
-    with open(file_last_mock_timestamp, "w", encoding=ENCODING) as f:
-        f.write(str(last_mock_timestamp))
+    update_project_config_param("lastMockTimestamp", last_mock_timestamp)
     print("Creating Mock Files Complete!")
 
     print(f"Mocking {os.path.basename(env.DIR_TEMP_PROJECT)} ...")
