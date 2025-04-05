@@ -841,6 +841,54 @@ def process_add_command(mock_file_to_create: str, EXTRACT_TYPE: str, EXTRACT_NAM
 def insert_mock_original_content(original_file: str, mock_file_to_create: str, show_details: bool):
     print("TODO: insert_mock_original_content")
 
+def mock_text_replace(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
+    # Verifica se os arquivos existem
+    if not os.path.isfile(mock_file_cmds):
+        print(f"Error: Not Found Source File '{mock_file_cmds}'")
+        sys.exit(1)
+    if not os.path.isfile(mock_file_to_create):
+        print(f"Error: Mock File '{mock_file_to_create}'")
+        sys.exit(1)
+    
+    inside_mock_block = False
+    MOCK_CMD = ""
+    count = 0
+    
+    # Lê todas as linhas do arquivo de comandos (preservando quebras de linha)
+    with open(mock_file_cmds, "r", encoding=ENCODING) as f:
+        cmds_lines = f.readlines()
+    
+    curr_text = ""
+    # Itera sobre cada linha (contabilizando o número da linha)
+    for line in cmds_lines:
+        count += 1
+        line = line.rstrip("\n")
+        
+        pattern = r"__MOCK_REPLACE_TEXT: \s*(.*)"
+        m = re.search(pattern, line)
+        if m:
+            curr_text = m.group(1)
+            MOCK_CMD = line
+            if inside_mock_block:
+                mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Nested instruction, expected text to replace")
+                sys.exit(1)
+            inside_mock_block = True
+            if show_details:
+                print(f"      replace text [${curr_text}]")        
+        elif (inside_mock_block):
+            inside_mock_block = False
+            new_text = line.strip()
+            content = ""
+            with open(mock_file_to_create, "r", encoding=ENCODING) as f:
+                content = f.read()
+            content = content.replace(curr_text, new_text)
+            with open(mock_file_to_create, 'w', encoding=ENCODING) as f:
+                f.write(content)
+
+    if inside_mock_block:
+        mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Block not terminated properly.")
+        sys.exit(1)
+
 def unmock_project():
     """
     Remove todos os arquivos com extensão .c ou .h dentro de DIR_SHADOW_MOCKS,
@@ -921,6 +969,7 @@ def mock_project(*args):
                         # Cria o arquivo de mock como cópia do arquivo original
                         shutil.copy2(original_file, mock_file_to_create)
                         # Processa as seções: remove, replace, insert top/bottom, add before/after
+                        mock_text_replace(mock_file, mock_file_to_create, show_details)
                         mock_remove_content(mock_file, mock_file_to_create, show_details)
                         mock_replace_content(mock_file, mock_file_to_create, show_details)
                         insert_mock_top_or_bottom(mock_file, mock_file_to_create, show_details)
