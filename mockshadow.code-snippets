@@ -72,5 +72,11 @@
       "//__MOCK_REMOVE: ${1:type} ${2:name}"
     ]
   },
-
+  "MOCK_REPLACE_TEXT": {
+    "prefix": "mrt",
+    "body": [
+      "//__MOCK_REPLACE_TEXT: ${1:text}",
+      "${0:// conteúdo aqui}",
+    ]
+  }
 }

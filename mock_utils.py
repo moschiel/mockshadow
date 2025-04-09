@@ -881,6 +881,9 @@ def mock_text_replace(mock_file_cmds: str, mock_file_to_create: str, show_detail
             content = ""
             with open(mock_file_to_create, "r", encoding=ENCODING) as f:
                 content = f.read()
+            if content.count(curr_text) == 0:
+                mock_err_msg(count, mock_file_cmds, MOCK_CMD, f"Not found text to replace '${curr_text}'")
+                sys.exit(1)
             content = content.replace(curr_text, new_text)
             with open(mock_file_to_create, 'w', encoding=ENCODING) as f:
                 f.write(content)
