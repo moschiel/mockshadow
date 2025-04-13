@@ -14,7 +14,7 @@ import env # Variaveis de ambiente env.py
 
 ENCODING="latin-1"
 script_dir = os.path.dirname(os.path.abspath(__file__))
-user_cache = {}
+user_env = {}
 user_configs = {}
 
 def validate_file_exists(file_path: str):
@@ -130,8 +130,8 @@ def clone_project_tree():
     """
     print("Cloning Project Tree")
 
-    if not os.path.isdir(env.DIR_ORIGINAL_PROJECT):
-        print(f"Erro: '{env.DIR_ORIGINAL_PROJECT}' não é um diretório válido.")
+    if not os.path.isdir(user_env.get("originalProject")):
+        print(f"Erro: '{user_env.get("originalProject")}' não é um diretório válido.")
         sys.exit(1)
 
     # Lê os diretórios a serem excluídos do arquivo
@@ -144,16 +144,16 @@ def clone_project_tree():
     else:
         print(f"Aviso: Arquivo '{exclude_file}' não encontrado. Nenhum diretório será excluído.")
 
-    for root, dirs, _ in os.walk(env.DIR_ORIGINAL_PROJECT):
+    for root, dirs, _ in os.walk(user_env.get("originalProject")):
         # Caminho relativo do diretório atual
-        rel_root = os.path.relpath(root, env.DIR_ORIGINAL_PROJECT).replace("\\", "/")
+        rel_root = os.path.relpath(root, user_env.get("originalProject")).replace("\\", "/")
 
         # Atualiza a lista 'dirs' no local para evitar descer em subdiretórios excluídos
         dirs[:] = [d for d in dirs
                    if os.path.normpath(os.path.join(rel_root, d)).replace("\\", "/") not in exclude_dirs]
 
         for d in dirs:
-            rel_path = os.path.relpath(os.path.join(root, d), env.DIR_ORIGINAL_PROJECT)
+            rel_path = os.path.relpath(os.path.join(root, d), user_env.get("originalProject"))
             new_dir = os.path.join(env.DIR_SHADOW_MOCKS, rel_path)
             os.makedirs(new_dir, exist_ok=True)
 
@@ -175,8 +175,8 @@ def list_mocks():
     print("Mock List Complete!")
 
 def clone_project(compare_dates: bool = False):
-    print(f"Cloning Project {env.DIR_ORIGINAL_PROJECT} to {env.DIR_TEMP_PROJECT}")
-    copy_project_content(env.DIR_ORIGINAL_PROJECT, env.DIR_TEMP_PROJECT, compare_dates)
+    print(f"Cloning Project {user_env.get("originalProject")} to {env.DIR_TEMP_PROJECT}")
+    copy_project_content(user_env.get("originalProject"), env.DIR_TEMP_PROJECT, compare_dates)
     
     print("Cloning FreeRTOS")
     print(" ***** TODO: DEPENDENCIA DO PROJETO NAO PODE FICAR AQUI ****")
@@ -211,51 +211,58 @@ def get_user_configs():
     except json.JSONDecodeError:
         sys.exit("fatal: invalid JSON in .mockshadow/config.json")
 
-def get_user_cache():
+def get_user_env():
     """
-    Reads the .mockshadow/cache.json and returns the configuration dictionary.
+    Reads the .mockshadow/env.json and returns the configuration dictionary.
     Creates if the file is missing.
     """
-    file_cache_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/cache.json")
+    file_env_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/env.json")
 
-    if not os.path.isfile(file_cache_json):
-        # Cria arquivo vazio com um JSON {}
-        with open(file_cache_json, "w", encoding=ENCODING) as f:
-            json.dump({}, f, indent=2)
-        return {}
+    if not os.path.isfile(file_env_json):
+        sys.exit("fatal: missing file .mockshadow/env.json")
 
     try:
-        with open(file_cache_json, "r", encoding=ENCODING) as f:
-            return json.load(f)
+        with open(file_env_json, "r", encoding="utf-8") as f:
+            env_data = json.load(f)
     except json.JSONDecodeError:
-        sys.exit("fatal: invalid JSON in .mockshadow/cache.json")
+        sys.exit("fatal: invalid JSON in .mockshadow/env.json")
 
-def update_user_cache_param(key, value):
+    if "originalProject" not in env_data:
+        sys.exit("fatal: missing 'originalProject' key in .mockshadow/env.json")
+
+    original_project_path = env_data["originalProject"]
+
+    if not isinstance(original_project_path, str) or not os.path.isdir(original_project_path):
+        sys.exit(f"fatal: 'originalProject' path does not exist or is not a directory: {original_project_path}")
+
+    return env_data
+
+def update_user_env_param(key, value):
     """
-    Atualiza um parâmetro específico no .mockshadow/cache.json.
+    Atualiza um parâmetro específico no .mockshadow/env.json.
     Cria a chave se ela não existir.
     """
-    file_cache_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/cache.json")
+    file_env_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/env.json")
 
-    if not os.path.isfile(file_cache_json):
-        sys.exit("fatal: not a mockshadow project (missing .mockshadow/cache.json)")
+    if not os.path.isfile(file_env_json):
+        sys.exit("fatal: not a mockshadow project (missing .mockshadow/env.json)")
 
     try:
-        with open(file_cache_json, "r", encoding=ENCODING) as f:
-            cache_data = json.load(f)
+        with open(file_env_json, "r", encoding=ENCODING) as f:
+            env_data = json.load(f)
     except json.JSONDecodeError:
-        sys.exit("fatal: invalid JSON in .mockshadow/cache.json")
+        sys.exit("fatal: invalid JSON in .mockshadow/env.json")
 
-    cache_data[key] = value
+    env_data[key] = value
 
-    with open(file_cache_json, "w", encoding=ENCODING) as f:
-        json.dump(cache_data, f, indent=4)
+    with open(file_env_json, "w", encoding=ENCODING) as f:
+        json.dump(env_data, f, indent=4)
 
 def mount_extractor_extra_args(custom_extra_args: str) -> str:
     # Remove espaços à esquerda dos argumentos customizados
     custom_extra_args = custom_extra_args.lstrip()
     
-    # Adiciona flags extras a partir da chave 'extractorCFlags' do JSON de cache
+    # Adiciona flags extras a partir da chave 'extractorCFlags' do JSON de env
     extra_args_list = []
     for Cflag in user_configs.get("extractorCFlags", []):
         if isinstance(Cflag, str) and Cflag.strip():
@@ -923,8 +930,8 @@ def unmock_project():
     clone_project()
 
 def mock_project(*args):
-    global user_cache, user_configs
-    user_cache = get_user_cache()
+    global user_env, user_configs
+    user_env = get_user_env()
     user_configs = get_user_configs()
 
     # Parse arguments
@@ -936,7 +943,7 @@ def mock_project(*args):
         elif arg == "remock":
             is_remock = True
 
-    proj_basename = os.path.basename(env.DIR_ORIGINAL_PROJECT)
+    proj_basename = os.path.basename(user_env.get("originalProject", ""))
 
     # Antes de mockar, se "remock" for solicitado, chama unmock_project()
     if is_remock:
@@ -945,7 +952,7 @@ def mock_project(*args):
         clone_project(True)
 
     print("Creating Mock Files ...")
-    last_mock_timestamp = user_cache.get("lastMockTimestamp", 0)
+    last_mock_timestamp = user_env.get("lastMockTimestamp", 0)
 
     # Itera sobre todos os arquivos .c e .h que iniciam com "__mock__" em DIR_SHADOW_MOCKS
     for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
@@ -959,7 +966,7 @@ def mock_project(*args):
 
                 # Remove DIR_SHADOW_MOCKS do caminho e junta com DIR_ORIGINAL_PROJECT para obter o arquivo original
                 partial_dir = os.path.relpath(mock_dir, env.DIR_SHADOW_MOCKS)
-                original_file = os.path.join(env.DIR_ORIGINAL_PROJECT, partial_dir, original_basename)
+                original_file = os.path.join(user_env.get("originalProject"), partial_dir, original_basename)
                 validate_file_exists(original_file)
 
                 
@@ -988,7 +995,7 @@ def mock_project(*args):
 
     # Atualiza o timestamp do último mock
     last_mock_timestamp = int(time.time())
-    update_user_cache_param("lastMockTimestamp", last_mock_timestamp)
+    update_user_env_param("lastMockTimestamp", last_mock_timestamp)
     print("Creating Mock Files Complete!")
 
     print(f"Mocking {os.path.basename(env.DIR_TEMP_PROJECT)} ...")
@@ -1008,7 +1015,7 @@ def mock_project(*args):
                     os.makedirs(os.path.dirname(project_file_to_replace), exist_ok=True)
                     shutil.copy2(mock_file, project_file_to_replace)
                 else:
-                    original_file = os.path.join(env.DIR_ORIGINAL_PROJECT, proj_file)
+                    original_file = os.path.join(user_env.get("originalProject"), proj_file)
                     validate_file_exists(original_file)
                     # Substitui o arquivo original pela versão mockada
                     shutil.copy2(mock_file, project_file_to_replace)

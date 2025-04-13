@@ -8,9 +8,6 @@
 
 import os
 
-# Diretório original do projeto
-DIR_ORIGINAL_PROJECT = os.path.expanduser("/path/to/project").rstrip("/")
-
 # Diretório do projeto mock shadow
 DIR_MOCK_SHADOW_PROJECT = os.path.expanduser("/path/to/mock/shadow/project").rstrip("/")
 
