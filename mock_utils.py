@@ -197,26 +197,26 @@ def clone_project(compare_dates: bool = False):
 
 def get_user_configs():
     """
-    Reads the mockshadow-config.json and returns the configuration dictionary.
+    Reads the .mockshadow/config.json and returns the configuration dictionary.
     Exits the application if the file is missing or contains invalid JSON.
     """
-    file_config_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "mockshadow-config.json")
+    file_config_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/config.json")
 
     if not os.path.isfile(file_config_json):
-        sys.exit("fatal: not a mockshadow project (missing mockshadow-config.json)")
+        sys.exit("fatal: not a mockshadow project (missing .mockshadow/config.json)")
 
     try:
         with open(file_config_json, "r", encoding=ENCODING) as f:
             return json.load(f)
     except json.JSONDecodeError:
-        sys.exit("fatal: invalid JSON in mockshadow-config.json")
+        sys.exit("fatal: invalid JSON in .mockshadow/config.json")
 
 def get_user_cache():
     """
-    Reads the mockshadow-cache.json and returns the configuration dictionary.
+    Reads the .mockshadow/cache.json and returns the configuration dictionary.
     Creates if the file is missing.
     """
-    file_cache_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "mockshadow-cache.json")
+    file_cache_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/cache.json")
 
     if not os.path.isfile(file_cache_json):
         # Cria arquivo vazio com um JSON {}
@@ -228,23 +228,23 @@ def get_user_cache():
         with open(file_cache_json, "r", encoding=ENCODING) as f:
             return json.load(f)
     except json.JSONDecodeError:
-        sys.exit("fatal: invalid JSON in mockshadow-cache.json")
+        sys.exit("fatal: invalid JSON in .mockshadow/cache.json")
 
 def update_user_cache_param(key, value):
     """
-    Atualiza um parâmetro específico no mockshadow-cache.json.
+    Atualiza um parâmetro específico no .mockshadow/cache.json.
     Cria a chave se ela não existir.
     """
-    file_cache_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "mockshadow-cache.json")
+    file_cache_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/cache.json")
 
     if not os.path.isfile(file_cache_json):
-        sys.exit("fatal: not a mockshadow project (missing mockshadow-cache.json)")
+        sys.exit("fatal: not a mockshadow project (missing .mockshadow/cache.json)")
 
     try:
         with open(file_cache_json, "r", encoding=ENCODING) as f:
             cache_data = json.load(f)
     except json.JSONDecodeError:
-        sys.exit("fatal: invalid JSON in mockshadow-config.json")
+        sys.exit("fatal: invalid JSON in .mockshadow/cache.json")
 
     cache_data[key] = value
 
