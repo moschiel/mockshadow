@@ -197,10 +197,6 @@ def clone_project(compare_dates: bool = False):
 
     print("Cloning Complete")
 
-import sys
-
-import sys
-
 def get_project_configs():
     """
     Reads the mockshadow-config.json and returns the configuration dictionary.
@@ -217,28 +213,45 @@ def get_project_configs():
     except json.JSONDecodeError:
         sys.exit("fatal: invalid JSON in mockshadow-config.json")
 
-
-def update_project_config_param(key, value):
+def get_project_cache():
     """
-    Atualiza um parâmetro específico no mockshadow-config.json.
-    Cria a chave se ela não existir.
+    Reads the mockshadow-cache.json and returns the configuration dictionary.
+    Creates if the file is missing.
     """
-    file_config_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "mockshadow-config.json")
+    file_cache_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "mockshadow-cache.json")
 
-    if not os.path.isfile(file_config_json):
-        sys.exit("fatal: not a mockshadow project (missing mockshadow-config.json)")
+    if not os.path.isfile(file_cache_json):
+        # Cria arquivo vazio com um JSON {}
+        with open(file_cache_json, "w", encoding=ENCODING) as f:
+            json.dump({}, f, indent=2)
+        return {}
 
     try:
-        with open(file_config_json, "r", encoding=ENCODING) as f:
-            config_data = json.load(f)
+        with open(file_cache_json, "r", encoding=ENCODING) as f:
+            return json.load(f)
+    except json.JSONDecodeError:
+        sys.exit("fatal: invalid JSON in mockshadow-cache.json")
+
+def update_project_cache_param(key, value):
+    """
+    Atualiza um parâmetro específico no mockshadow-cache.json.
+    Cria a chave se ela não existir.
+    """
+    file_cache_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "mockshadow-cache.json")
+
+    if not os.path.isfile(file_cache_json):
+        sys.exit("fatal: not a mockshadow project (missing mockshadow-cache.json)")
+
+    try:
+        with open(file_cache_json, "r", encoding=ENCODING) as f:
+            cache_data = json.load(f)
     except json.JSONDecodeError:
         sys.exit("fatal: invalid JSON in mockshadow-config.json")
 
-    config_data[key] = value
+    cache_data[key] = value
 
-    with open(file_config_json, "w", encoding=ENCODING) as f:
-        json.dump(config_data, f, indent=4)
-
+    with open(file_cache_json, "w", encoding=ENCODING) as f:
+        json.dump(cache_data, f, indent=4)
 
 def mount_extractor_extra_args(custom_extra_args: str) -> str:
     # Remove espaços à esquerda dos argumentos customizados
@@ -922,7 +935,7 @@ def unmock_project():
     clone_project()
 
 def mock_project(*args):
-    configs = get_project_configs()
+    cache = get_project_cache()
 
     # Parse arguments
     show_details = False
@@ -942,7 +955,7 @@ def mock_project(*args):
         clone_project(True)
 
     print("Creating Mock Files ...")
-    last_mock_timestamp = configs.get("lastMockTimestamp", 0)
+    last_mock_timestamp = cache.get("lastMockTimestamp", 0)
 
     # Itera sobre todos os arquivos .c e .h que iniciam com "__mock__" em DIR_SHADOW_MOCKS
     for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
@@ -985,7 +998,7 @@ def mock_project(*args):
 
     # Atualiza o timestamp do último mock
     last_mock_timestamp = int(time.time())
-    update_project_config_param("lastMockTimestamp", last_mock_timestamp)
+    update_project_cache_param("lastMockTimestamp", last_mock_timestamp)
     print("Creating Mock Files Complete!")
 
     print(f"Mocking {os.path.basename(env.DIR_TEMP_PROJECT)} ...")
