@@ -12,8 +12,10 @@ import time
 import json
 import env # Variaveis de ambiente env.py
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
 ENCODING="latin-1"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+user_cache = {}
+user_configs = {}
 
 def validate_file_exists(file_path: str):
     if not os.path.isfile(file_path):
@@ -37,7 +39,7 @@ def remove_directory(directory: str):
 
 def copy_project_content(src: str, dest: str, compare_dates: bool = False):
     """
-    Copia recursivamente o conteúdo de 'src' para 'dest', ignorando os itens listados em 'exclude-dirs.txt'.
+    Copia recursivamente o conteúdo de 'src' para 'dest', ignorando os itens listados em 'excludeFromCopy'.
     Quando 'compare_dates' é False (comportamento padrão):
       - Remove o diretório de destino (se existir), recriando-o e copiando tudo.
     Quando 'compare_dates' é True:
@@ -47,15 +49,12 @@ def copy_project_content(src: str, dest: str, compare_dates: bool = False):
     import os
     import shutil
 
-    # Lê os itens a serem excluídos do arquivo
-    exclude_file = "exclude-dirs.txt"
-    exclude_items = set()
-    if os.path.isfile(exclude_file):
-        with open(exclude_file, "r", encoding="utf-8") as f:
-            exclude_items = {line.strip().replace("\\", "/") for line in f if line.strip()}
-    else:
-        print(f"Aviso: Arquivo '{exclude_file}' não encontrado. Nenhuma exclusão será aplicada.")
-
+    # Lê os itens a serem excluídos
+    exclude_items = []
+    for item in user_configs.get("excludeFromCopy", []):
+        if isinstance(item, str) and item.strip():
+            exclude_items.append(item.strip())
+    
     def ignore_func(current, names):
         """
         Função auxiliar para o copytree: calcula o caminho relativo do diretório atual
@@ -115,7 +114,6 @@ def copy_project_content(src: str, dest: str, compare_dates: bool = False):
                 else:
                     shutil.copy2(src_item, dest_item)
 
-    
 def remover_git_dirs(caminho_base):
     for root, dirs, files in os.walk(caminho_base):
         if '.git' in dirs:
@@ -197,7 +195,7 @@ def clone_project(compare_dates: bool = False):
 
     print("Cloning Complete")
 
-def get_project_configs():
+def get_user_configs():
     """
     Reads the mockshadow-config.json and returns the configuration dictionary.
     Exits the application if the file is missing or contains invalid JSON.
@@ -213,7 +211,7 @@ def get_project_configs():
     except json.JSONDecodeError:
         sys.exit("fatal: invalid JSON in mockshadow-config.json")
 
-def get_project_cache():
+def get_user_cache():
     """
     Reads the mockshadow-cache.json and returns the configuration dictionary.
     Creates if the file is missing.
@@ -232,7 +230,7 @@ def get_project_cache():
     except json.JSONDecodeError:
         sys.exit("fatal: invalid JSON in mockshadow-cache.json")
 
-def update_project_cache_param(key, value):
+def update_user_cache_param(key, value):
     """
     Atualiza um parâmetro específico no mockshadow-cache.json.
     Cria a chave se ela não existir.
@@ -257,21 +255,11 @@ def mount_extractor_extra_args(custom_extra_args: str) -> str:
     # Remove espaços à esquerda dos argumentos customizados
     custom_extra_args = custom_extra_args.lstrip()
     
-    # Define o caminho para o arquivo de extra args
-    file_path = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "extractor-global-cflags.txt")
+    # Adiciona flags extras a partir da chave 'extractorCFlags' do JSON de cache
     extra_args_list = []
-    
-    # Lê o arquivo linha por linha
-    try:
-        with open(file_path, "r") as f:
-            for line in f:
-                # Remove quebras de linha e espaços no início/fim
-                line = line.replace('\r', '').replace('\n', '').strip()
-                if line:  # Se a linha não estiver vazia, adiciona à lista
-                    extra_args_list.append(line)
-    except FileNotFoundError:
-        # Se o arquivo não existir, não adiciona nada
-        pass
+    for Cflag in user_configs.get("extractorCFlags", []):
+        if isinstance(Cflag, str) and Cflag.strip():
+            extra_args_list.append(Cflag.strip())
     
     # Combina os custom_extra_args com os extra args lidos do arquivo
     combined_args = f"{custom_extra_args} " + " ".join(extra_args_list)
@@ -935,7 +923,9 @@ def unmock_project():
     clone_project()
 
 def mock_project(*args):
-    cache = get_project_cache()
+    global user_cache, user_configs
+    user_cache = get_user_cache()
+    user_configs = get_user_configs()
 
     # Parse arguments
     show_details = False
@@ -955,7 +945,7 @@ def mock_project(*args):
         clone_project(True)
 
     print("Creating Mock Files ...")
-    last_mock_timestamp = cache.get("lastMockTimestamp", 0)
+    last_mock_timestamp = user_cache.get("lastMockTimestamp", 0)
 
     # Itera sobre todos os arquivos .c e .h que iniciam com "__mock__" em DIR_SHADOW_MOCKS
     for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
@@ -998,7 +988,7 @@ def mock_project(*args):
 
     # Atualiza o timestamp do último mock
     last_mock_timestamp = int(time.time())
-    update_project_cache_param("lastMockTimestamp", last_mock_timestamp)
+    update_user_cache_param("lastMockTimestamp", last_mock_timestamp)
     print("Creating Mock Files Complete!")
 
     print(f"Mocking {os.path.basename(env.DIR_TEMP_PROJECT)} ...")
