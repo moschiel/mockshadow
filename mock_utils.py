@@ -172,18 +172,15 @@ def clone_project(compare_dates: bool = False):
     print(f"Cloning Project {runtime.USER_ENV.get("originalProject")} to {runtime.DIR_TEMP_PROJECT}")
     copy_project_content(runtime.USER_ENV.get("originalProject"), runtime.DIR_TEMP_PROJECT, compare_dates)
     
-    print("Cloning FreeRTOS")
-    print(" ***** TODO: DEPENDENCIA DO PROJETO NAO PODE FICAR AQUI ****")
-    print(" ***** TODO: DEPENDENCIA DO PROJETO NAO PODE FICAR AQUI ****")
-    print(" ***** TODO: DEPENDENCIA DO PROJETO NAO PODE FICAR AQUI ****")
-    
-    src_freertos = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "FreeRTOS")
-    dest_freertos = os.path.join(runtime.DIR_TEMP_PROJECT, "FreeRTOS")
-    copy_project_content(src_freertos, dest_freertos, compare_dates)
-    
-    #echo "Cloning FreeRTOS+FAT"
-    #copy_project_content "$SCRIPT_MOCKSHADOW_DIR/FreeRTOS+FAT" "$SCRIPT_MOCKSHADOW_DIR/MOCKED_PROJECT/FreeRTOS+FAT"
-    
+    addToCopy = runtime.USER_CONFIGS.get("addToCopy")
+    for item in runtime.USER_CONFIGS.get("addToCopy", []):
+        src = item["src"]
+        dest = item["temp_dest"]
+        if isinstance(src, str) and isinstance(dest, str):
+            dest = os.path.join(runtime.DIR_TEMP_PROJECT, dest)
+            print(f"Cloning {src} to {dest}")  
+            copy_project_content(src, dest, compare_dates)      
+
     print(f"Removing '.git' directories from cloned project")
     remover_git_dirs(runtime.DIR_TEMP_PROJECT)
 
