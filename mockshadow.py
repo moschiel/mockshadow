@@ -3,7 +3,7 @@ import os
 import sys
 import subprocess
 import time
-import env
+import runtime
 import mock_utils
 
 # Obtém o diretório do script (seguindo links simbólicos)
@@ -81,7 +81,7 @@ if run_mock or run_remock:
     mock_utils.mock_project(*mock_args)
 
 if run_build or run_rebuild:
-    build_dir = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "build")
+    build_dir = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "build")
     # Se rebuild, remove o diretório build
     if run_rebuild:
         # Usa a função já convertida para remover diretórios
@@ -98,8 +98,8 @@ if run_build or run_rebuild:
 
 if run_exec or run_debug:
     print("Executing Target...")
-    os.chdir(env.DIR_MOCK_SHADOW_PROJECT)
-    target_dir=os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "build/MSC_Simulator")
+    os.chdir(runtime.DIR_MOCK_SHADOW_PROJECT)
+    target_dir=os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "build/MSC_Simulator")
     if run_exec:
         subprocess.run([target_dir], check=True)
     else:

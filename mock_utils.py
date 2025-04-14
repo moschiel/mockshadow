@@ -10,12 +10,10 @@ import subprocess
 import tempfile
 import time
 import json
-import env # Variaveis de ambiente env.py
+import runtime # Variaveis de ambiente
 
 ENCODING="latin-1"
 script_dir = os.path.dirname(os.path.abspath(__file__))
-user_env = {}
-user_configs = {}
 
 def validate_file_exists(file_path: str):
     if not os.path.isfile(file_path):
@@ -51,7 +49,7 @@ def copy_project_content(src: str, dest: str, compare_dates: bool = False):
 
     # Lê os itens a serem excluídos
     exclude_items = []
-    for item in user_configs.get("excludeFromCopy", []):
+    for item in runtime.USER_CONFIGS.get("excludeFromCopy", []):
         if isinstance(item, str) and item.strip():
             exclude_items.append(item.strip())
     
@@ -126,35 +124,31 @@ def remover_git_dirs(caminho_base):
 def clone_project_tree():
     """
     Clona a árvore de diretórios de 'DIR_ORIGINAL_PROJECT' para 'DIR_SHADOW_MOCKS',
-    ignorando os diretórios listados em 'exclude-dirs.txt'.
+    ignorando os diretórios listados em 'excludeFromCopy'.
     """
     print("Cloning Project Tree")
 
-    if not os.path.isdir(user_env.get("originalProject")):
-        print(f"Erro: '{user_env.get("originalProject")}' não é um diretório válido.")
+    if not os.path.isdir(runtime.USER_ENV.get("originalProject")):
+        print(f"Erro: '{runtime.USER_ENV.get("originalProject")}' não é um diretório válido.")
         sys.exit(1)
 
-    # Lê os diretórios a serem excluídos do arquivo
-    exclude_file = os.path.join(env.DIR_MOCK_SHADOW_PROJECT,"exclude-dirs.txt")
-    exclude_dirs = set()
-
-    if os.path.isfile(exclude_file):
-        with open(exclude_file, "r", encoding="utf-8") as f:
-            exclude_dirs = {line.strip().replace("\\", "/") for line in f if line.strip()}
-    else:
-        print(f"Aviso: Arquivo '{exclude_file}' não encontrado. Nenhum diretório será excluído.")
-
-    for root, dirs, _ in os.walk(user_env.get("originalProject")):
+    # Lê os itens a serem excluídos da copia
+    exclude_items = []
+    for item in runtime.USER_CONFIGS.get("excludeFromCopy", []):
+        if isinstance(item, str) and item.strip():
+            exclude_items.append(item.strip())
+    
+    for root, dirs, _ in os.walk(runtime.USER_ENV.get("originalProject")):
         # Caminho relativo do diretório atual
-        rel_root = os.path.relpath(root, user_env.get("originalProject")).replace("\\", "/")
+        rel_root = os.path.relpath(root, runtime.USER_ENV.get("originalProject")).replace("\\", "/")
 
         # Atualiza a lista 'dirs' no local para evitar descer em subdiretórios excluídos
         dirs[:] = [d for d in dirs
-                   if os.path.normpath(os.path.join(rel_root, d)).replace("\\", "/") not in exclude_dirs]
+                   if os.path.normpath(os.path.join(rel_root, d)).replace("\\", "/") not in exclude_items]
 
         for d in dirs:
-            rel_path = os.path.relpath(os.path.join(root, d), user_env.get("originalProject"))
-            new_dir = os.path.join(env.DIR_SHADOW_MOCKS, rel_path)
+            rel_path = os.path.relpath(os.path.join(root, d), runtime.USER_ENV.get("originalProject"))
+            new_dir = os.path.join(runtime.DIR_SHADOW_MOCKS, rel_path)
             os.makedirs(new_dir, exist_ok=True)
 
     print("Cloning Project Tree Complete!")
@@ -163,35 +157,35 @@ def list_mocks():
     print("Mock List")
     
     # Percorre recursivamente o diretório DIR_SHADOW_MOCKS
-    for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
+    for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
         for filename in files:
             if filename.startswith("__mock__") or filename.startswith("__additional__"):
                 # Obtém o caminho completo do arquivo
                 file_path = os.path.join(root, filename)
                 # Calcula o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT
-                relative_path = os.path.relpath(file_path, env.DIR_MOCK_SHADOW_PROJECT)
+                relative_path = os.path.relpath(file_path, runtime.DIR_MOCK_SHADOW_PROJECT)
                 print(f"  {relative_path}")
     
     print("Mock List Complete!")
 
 def clone_project(compare_dates: bool = False):
-    print(f"Cloning Project {user_env.get("originalProject")} to {env.DIR_TEMP_PROJECT}")
-    copy_project_content(user_env.get("originalProject"), env.DIR_TEMP_PROJECT, compare_dates)
+    print(f"Cloning Project {runtime.USER_ENV.get("originalProject")} to {runtime.DIR_TEMP_PROJECT}")
+    copy_project_content(runtime.USER_ENV.get("originalProject"), runtime.DIR_TEMP_PROJECT, compare_dates)
     
     print("Cloning FreeRTOS")
     print(" ***** TODO: DEPENDENCIA DO PROJETO NAO PODE FICAR AQUI ****")
     print(" ***** TODO: DEPENDENCIA DO PROJETO NAO PODE FICAR AQUI ****")
     print(" ***** TODO: DEPENDENCIA DO PROJETO NAO PODE FICAR AQUI ****")
     
-    src_freertos = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, "FreeRTOS")
-    dest_freertos = os.path.join(env.DIR_TEMP_PROJECT, "FreeRTOS")
+    src_freertos = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "FreeRTOS")
+    dest_freertos = os.path.join(runtime.DIR_TEMP_PROJECT, "FreeRTOS")
     copy_project_content(src_freertos, dest_freertos, compare_dates)
     
     #echo "Cloning FreeRTOS+FAT"
     #copy_project_content "$SCRIPT_MOCKSHADOW_DIR/FreeRTOS+FAT" "$SCRIPT_MOCKSHADOW_DIR/MOCKED_PROJECT/FreeRTOS+FAT"
     
     print(f"Removing '.git' directories from cloned project")
-    remover_git_dirs(env.DIR_TEMP_PROJECT)
+    remover_git_dirs(runtime.DIR_TEMP_PROJECT)
 
     print("Cloning Complete")
 
@@ -200,7 +194,7 @@ def get_user_configs():
     Reads the .mockshadow/config.json and returns the configuration dictionary.
     Exits the application if the file is missing or contains invalid JSON.
     """
-    file_config_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/config.json")
+    file_config_json = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/config.json")
 
     if not os.path.isfile(file_config_json):
         sys.exit("fatal: not a mockshadow project (missing .mockshadow/config.json)")
@@ -216,7 +210,7 @@ def get_user_env():
     Reads the .mockshadow/env.json and returns the configuration dictionary.
     Creates if the file is missing.
     """
-    file_env_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/env.json")
+    file_env_json = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/env.json")
 
     if not os.path.isfile(file_env_json):
         sys.exit("fatal: missing file .mockshadow/env.json")
@@ -242,7 +236,7 @@ def update_user_env_param(key, value):
     Atualiza um parâmetro específico no .mockshadow/env.json.
     Cria a chave se ela não existir.
     """
-    file_env_json = os.path.join(env.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/env.json")
+    file_env_json = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/env.json")
 
     if not os.path.isfile(file_env_json):
         sys.exit("fatal: not a mockshadow project (missing .mockshadow/env.json)")
@@ -264,7 +258,7 @@ def mount_extractor_extra_args(custom_extra_args: str) -> str:
     
     # Adiciona flags extras a partir da chave 'extractorCFlags' do JSON de env
     extra_args_list = []
-    for Cflag in user_configs.get("extractorCFlags", []):
+    for Cflag in runtime.USER_CONFIGS.get("extractorCFlags", []):
         if isinstance(Cflag, str) and Cflag.strip():
             extra_args_list.append(Cflag.strip())
     
@@ -908,10 +902,10 @@ def unmock_project():
 
     Para arquivos removidos, exibe o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT.
     """
-    print("Cleaning", os.path.basename(env.DIR_SHADOW_MOCKS), "...")
+    print("Cleaning", os.path.basename(runtime.DIR_SHADOW_MOCKS), "...")
     
     # Percorre recursivamente o diretório DIR_SHADOW_MOCKS
-    for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
+    for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
         for file in files:
             # Filtra arquivos com extensão .c ou .h, mas exclui os que começam com "__mock__" ou "__additional__"
             if (file.endswith(".c") or file.endswith(".h")) and not (file.startswith("__mock__") or file.startswith("__additional__")):
@@ -919,7 +913,7 @@ def unmock_project():
                 try:
                     os.remove(file_path)
                     # Calcula o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT
-                    relative_path = os.path.relpath(file_path, env.DIR_MOCK_SHADOW_PROJECT)
+                    relative_path = os.path.relpath(file_path, runtime.DIR_MOCK_SHADOW_PROJECT)
                     print("  Removed", relative_path)
                 except Exception as e:
                     print(f"Error removing file {file_path}: {e}", file=sys.stderr)
@@ -930,10 +924,6 @@ def unmock_project():
     clone_project()
 
 def mock_project(*args):
-    global user_env, user_configs
-    user_env = get_user_env()
-    user_configs = get_user_configs()
-
     # Parse arguments
     show_details = False
     is_remock = False
@@ -943,7 +933,7 @@ def mock_project(*args):
         elif arg == "remock":
             is_remock = True
 
-    proj_basename = os.path.basename(user_env.get("originalProject", ""))
+    proj_basename = os.path.basename(runtime.USER_ENV.get("originalProject", ""))
 
     # Antes de mockar, se "remock" for solicitado, chama unmock_project()
     if is_remock:
@@ -952,10 +942,10 @@ def mock_project(*args):
         clone_project(True)
 
     print("Creating Mock Files ...")
-    last_mock_timestamp = user_env.get("lastMockTimestamp", 0)
+    last_mock_timestamp = runtime.USER_ENV.get("lastMockTimestamp", 0)
 
     # Itera sobre todos os arquivos .c e .h que iniciam com "__mock__" em DIR_SHADOW_MOCKS
-    for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
+    for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
         for filename in files:
             if (filename.endswith(".c") or filename.endswith(".h")) and filename.startswith("__mock__"):
                 mock_file = os.path.join(root, filename)
@@ -965,8 +955,8 @@ def mock_project(*args):
                 mock_file_to_create = os.path.join(mock_dir, original_basename)
 
                 # Remove DIR_SHADOW_MOCKS do caminho e junta com DIR_ORIGINAL_PROJECT para obter o arquivo original
-                partial_dir = os.path.relpath(mock_dir, env.DIR_SHADOW_MOCKS)
-                original_file = os.path.join(user_env.get("originalProject"), partial_dir, original_basename)
+                partial_dir = os.path.relpath(mock_dir, runtime.DIR_SHADOW_MOCKS)
+                original_file = os.path.join(runtime.USER_ENV.get("originalProject"), partial_dir, original_basename)
                 validate_file_exists(original_file)
 
                 
@@ -975,7 +965,7 @@ def mock_project(*args):
                     (os.stat(original_file).st_mtime > last_mock_timestamp)):   # ou se o arquivo original foi modificado após o último mock
 
                     mock_mode = check_file_mock_mode(mock_file)
-                    rel_path = os.path.relpath(mock_file_to_create, env.DIR_MOCK_SHADOW_PROJECT)
+                    rel_path = os.path.relpath(mock_file_to_create, runtime.DIR_MOCK_SHADOW_PROJECT)
                     print(f"  Creating {rel_path} (MOCK_MODE: {mock_mode})")
 
                     if mock_mode == "copy":
@@ -998,16 +988,16 @@ def mock_project(*args):
     update_user_env_param("lastMockTimestamp", last_mock_timestamp)
     print("Creating Mock Files Complete!")
 
-    print(f"Mocking {os.path.basename(env.DIR_TEMP_PROJECT)} ...")
+    print(f"Mocking {os.path.basename(runtime.DIR_TEMP_PROJECT)} ...")
     # Itera sobre os mocks em DIR_SHADOW_MOCKS que são .c ou .h, mas não começam com "__mock__"
-    for root, dirs, files in os.walk(env.DIR_SHADOW_MOCKS):
+    for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
         for filename in files:
             if (filename.endswith(".c") or filename.endswith(".h")) and not filename.startswith("__mock__"):
                 mock_file = os.path.join(root, filename)
-                proj_file = os.path.relpath(mock_file, env.DIR_SHADOW_MOCKS)
-                project_file_to_replace = os.path.join(env.DIR_TEMP_PROJECT, proj_file)
+                proj_file = os.path.relpath(mock_file, runtime.DIR_SHADOW_MOCKS)
+                project_file_to_replace = os.path.join(runtime.DIR_TEMP_PROJECT, proj_file)
 
-                basename_project_to_mock = os.path.basename(env.DIR_TEMP_PROJECT)
+                basename_project_to_mock = os.path.basename(runtime.DIR_TEMP_PROJECT)
                 print(f"  Mocking {os.path.join(basename_project_to_mock, proj_file)}")
                 file_basename = os.path.basename(proj_file)
                 if file_basename.startswith("__additional__"):
@@ -1015,8 +1005,8 @@ def mock_project(*args):
                     os.makedirs(os.path.dirname(project_file_to_replace), exist_ok=True)
                     shutil.copy2(mock_file, project_file_to_replace)
                 else:
-                    original_file = os.path.join(user_env.get("originalProject"), proj_file)
+                    original_file = os.path.join(runtime.USER_ENV.get("originalProject"), proj_file)
                     validate_file_exists(original_file)
                     # Substitui o arquivo original pela versão mockada
                     shutil.copy2(mock_file, project_file_to_replace)
-    print(f"Mocking {os.path.basename(env.DIR_TEMP_PROJECT)} Complete!")
+    print(f"Mocking {os.path.basename(runtime.DIR_TEMP_PROJECT)} Complete!")
