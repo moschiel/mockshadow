@@ -65,6 +65,17 @@ def main():
         run_command(["sudo", "rm", "-f", symlink_path])
         run_command(["sudo", "ln", "-s", mockshadow_path, symlink_path])
 
+        #apt update
+        run_command(["sudo", "apt", "update"])
+        #CMake
+        run_command(["sudo", "apt", "install", "cmake"])
+        #CLang
+        run_command(["sudo", "apt", "install", "clang"])
+        # Reinstall libclang-18-dev para corrigir o erro do CMake
+        run_command(["sudo", "apt", "install", "--reinstall", "libclang-18-dev"])
+
+
+
     # Build do clang-code-extractor usando a versão Python (build.py)
     print("Building clang-code-extractor")
     clang_dir = os.path.join(script_dir, "clang-code-extractor")
