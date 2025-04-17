@@ -18,6 +18,15 @@
             "problemMatcher": []
         },
         {
+            "label": "Clone Tree",
+            "type": "shell",
+            "command": "mockshadow",
+            "args": [
+                "clone-tree"
+            ],
+            "problemMatcher": []
+        },
+        {
             "label": "Mock",
             "type": "shell",
             "command": "mockshadow",

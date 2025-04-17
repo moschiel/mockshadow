@@ -125,7 +125,7 @@ def clone_project_tree():
     ignorando os diretórios listados em 'excludeFromCopy'.
     """
     import runtime
-    print("Cloning Project Tree")
+    print("Cloning Project Tree:", runtime.USER_ENV.get("originalProject"))
 
     if not os.path.isdir(runtime.USER_ENV.get("originalProject")):
         print(f"Erro: '{runtime.USER_ENV.get("originalProject")}' não é um diretório válido.")
