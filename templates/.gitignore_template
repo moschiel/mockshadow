@@ -1,0 +1,11 @@
+# Ignora todos os arquivos .c e .h dentro de MOCK_TREE em qualquer subdiretório
+MOCK_TREE/**/*.c
+MOCK_TREE/**/*.h
+# Exceto os que começam com __additional__ ou __mock__
+!MOCK_TREE/**/__additional__*.c
+!MOCK_TREE/**/__additional__*.h
+!MOCK_TREE/**/__mock__*.c
+!MOCK_TREE/**/__mock__*.h
+
+.mockshadow/env.json
+TEMP_PROJECT

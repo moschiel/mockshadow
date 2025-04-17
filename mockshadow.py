@@ -3,7 +3,6 @@ import os
 import sys
 import subprocess
 import time
-import runtime
 import mock_utils
 
 # Obtém o diretório do script (seguindo links simbólicos)
@@ -14,6 +13,8 @@ script_mockshadow_dir = os.path.dirname(os.path.realpath(__file__))
 
 # Flags para controlar a execução
 run_version = False
+run_create_project = False
+create_project_name = ""
 run_mock = False
 run_remock = False
 run_build = False
@@ -28,8 +29,14 @@ run_clone_project = False
 
 # Processa os argumentos da linha de comando
 for arg in sys.argv[1:]:
+    if run_create_project:
+        create_project_name = arg
+        break
+
     if arg == "version":
         run_version = True
+    elif arg == "create-project":
+        run_create_project = True
     elif arg == "details":
         show_details = True
     elif arg == "run":
@@ -59,9 +66,12 @@ for arg in sys.argv[1:]:
     else:
         print(f"Warning: Unknown argument '{arg}'")
 
-# Executa as funções conforme as flags
+# Executa as funções de acordo com as flags
 if run_version:
     print("mockshadow version 1.0")
+
+if run_create_project:
+    mock_utils.create_mockshadow_project(create_project_name)
 
 if run_list:
     mock_utils.list_mocks()
@@ -81,6 +91,9 @@ if run_mock or run_remock:
     mock_utils.mock_project(*mock_args)
 
 if run_build or run_rebuild:
+    print("TODO: run_build and run_rebuild")
+    """     
+    import runtime
     build_dir = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "build")
     # Se rebuild, remove o diretório build
     if run_rebuild:
@@ -94,17 +107,20 @@ if run_build or run_rebuild:
     subprocess.run(["cmake", "../"], check=True)
     print("Building Project...")
     subprocess.run(["make"], check=True)
-    os.chdir(script_mockshadow_dir)
+    os.chdir(script_mockshadow_dir) """
 
 if run_exec or run_debug:
+    print("TODO: run_exec and run_debug")
+    """ 
+    import runtime
     print("Executing Target...")
     os.chdir(runtime.DIR_MOCK_SHADOW_PROJECT)
-    target_dir=os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "build/MSC_Simulator")
+    target_dir=os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "build/executable")
     if run_exec:
         subprocess.run([target_dir], check=True)
     else:
         subprocess.run(["gdb", "-q", "--args", target_dir], check=True)
-    os.chdir(script_mockshadow_dir)
+    os.chdir(script_mockshadow_dir) """
 
 if run_unmock:
     mock_utils.unmock_project()

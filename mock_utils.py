@@ -10,7 +10,6 @@ import subprocess
 import tempfile
 import time
 import json
-import runtime # Variaveis de ambiente
 
 ENCODING="latin-1"
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,8 +43,7 @@ def copy_project_content(src: str, dest: str, compare_dates: bool = False):
       - Atualiza somente os arquivos que não existem em 'dest' ou cujas datas de modificação diferem.
       - Para diretórios, se já existirem, a função é chamada recursivamente.
     """
-    import os
-    import shutil
+    import runtime
 
     # Lê os itens a serem excluídos
     exclude_items = []
@@ -126,6 +124,7 @@ def clone_project_tree():
     Clona a árvore de diretórios de 'DIR_ORIGINAL_PROJECT' para 'DIR_SHADOW_MOCKS',
     ignorando os diretórios listados em 'excludeFromCopy'.
     """
+    import runtime
     print("Cloning Project Tree")
 
     if not os.path.isdir(runtime.USER_ENV.get("originalProject")):
@@ -154,6 +153,7 @@ def clone_project_tree():
     print("Cloning Project Tree Complete!")
 
 def list_mocks():
+    import runtime
     print("Mock List")
     
     # Percorre recursivamente o diretório DIR_SHADOW_MOCKS
@@ -169,6 +169,7 @@ def list_mocks():
     print("Mock List Complete!")
 
 def clone_project(compare_dates: bool = False):
+    import runtime
     print(f"Cloning Project {runtime.USER_ENV.get("originalProject")} to {runtime.DIR_TEMP_PROJECT}")
     copy_project_content(runtime.USER_ENV.get("originalProject"), runtime.DIR_TEMP_PROJECT, compare_dates)
     
@@ -191,6 +192,7 @@ def get_user_configs():
     Reads the .mockshadow/config.json and returns the configuration dictionary.
     Exits the application if the file is missing or contains invalid JSON.
     """
+    import runtime
     file_config_json = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/config.json")
 
     if not os.path.isfile(file_config_json):
@@ -207,6 +209,7 @@ def get_user_env():
     Reads the .mockshadow/env.json and returns the configuration dictionary.
     Creates if the file is missing.
     """
+    import runtime
     file_env_json = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/env.json")
 
     if not os.path.isfile(file_env_json):
@@ -233,6 +236,7 @@ def update_user_env_param(key, value):
     Atualiza um parâmetro específico no .mockshadow/env.json.
     Cria a chave se ela não existir.
     """
+    import runtime
     file_env_json = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, ".mockshadow/env.json")
 
     if not os.path.isfile(file_env_json):
@@ -250,6 +254,7 @@ def update_user_env_param(key, value):
         json.dump(env_data, f, indent=4)
 
 def mount_extractor_extra_args(custom_extra_args: str) -> str:
+    import runtime
     # Remove espaços à esquerda dos argumentos customizados
     custom_extra_args = custom_extra_args.lstrip()
     
@@ -899,6 +904,7 @@ def unmock_project():
 
     Para arquivos removidos, exibe o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT.
     """
+    import runtime
     print("Cleaning", os.path.basename(runtime.DIR_SHADOW_MOCKS), "...")
     
     # Percorre recursivamente o diretório DIR_SHADOW_MOCKS
@@ -921,6 +927,7 @@ def unmock_project():
     clone_project()
 
 def mock_project(*args):
+    import runtime
     # Parse arguments
     show_details = False
     is_remock = False
@@ -1007,3 +1014,50 @@ def mock_project(*args):
                     # Substitui o arquivo original pela versão mockada
                     shutil.copy2(mock_file, project_file_to_replace)
     print(f"Mocking {os.path.basename(runtime.DIR_TEMP_PROJECT)} Complete!")
+
+def create_mockshadow_project(project_name):
+    # Verifica se o nome do projeto é válido
+    if not project_name or not project_name.strip():
+        print("Error: Project name cannot be empty.")
+        sys.exit(1)
+
+    # Evita nomes com caracteres inválidos (ex: / \ ? * etc.)
+    if re.search(r'[<>:"/\\|?*\x00-\x1F]', project_name):
+        print("Error: Project name contains invalid characters.")
+        sys.exit(1)
+
+    # Caminho absoluto para a pasta onde o script foi executado
+    exec_dir = os.getcwd()
+    project_path = os.path.join(exec_dir, project_name.strip())
+
+    # Caminhos das pastas/arquivos do template
+    template_root = os.path.join(os.path.dirname(__file__), "templates")
+    template_dot_mockshadow = os.path.join(template_root, ".mockshadow")
+    template_dot_vscode = os.path.join(template_root, ".vscode")
+    template_gitignore = os.path.join(template_root, ".gitignore_template")
+
+    try:
+        # Cria a pasta do projeto
+        os.makedirs(project_path, exist_ok=True)
+
+        # Copia .mockshadow
+        dst_dot_mockshadow = os.path.join(project_path, ".mockshadow")
+        shutil.copytree(template_dot_mockshadow, dst_dot_mockshadow, dirs_exist_ok=True)
+
+        # Copia .vscode
+        dst_dot_vscode = os.path.join(project_path, ".vscode")
+        shutil.copytree(template_dot_vscode, dst_dot_vscode, dirs_exist_ok=True)
+
+        # Copia .gitignore
+        dst_gitignore = os.path.join(project_path, ".gitignore")
+        shutil.copyfile(template_gitignore, dst_gitignore)
+
+        # Cria o diretório MOCK_TREE
+        mock_tree_path = os.path.join(project_path, "MOCK_TREE")
+        os.makedirs(mock_tree_path, exist_ok=True)
+
+        print(f"✅ MockShadow project created at: {project_path}")
+
+    except Exception as e:
+        print(f"❌ Error while creating project: {e}")
+        sys.exit(1)
