@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import tkinter as tk
+import runtime
 
 paste_clipboard_content=False
 
@@ -15,13 +16,8 @@ def get_clipboard_content():
     except Exception as e:
         return ""
 
-def main():
-    if len(sys.argv) < 2:
-        print("Uso: python script.py <caminho/para/o/arquivo>")
-        sys.exit(1)
-    
+def open_mock(original_file: str):
     # Caminho do arquivo original
-    original_file = sys.argv[1]
     if not os.path.isfile(original_file):
         print(f"Arquivo '{original_file}' não encontrado.")
         sys.exit(1)
@@ -33,15 +29,10 @@ def main():
         print("O arquivo deve ser .c ou .h para prosseguir.")
         sys.exit(1)
     
-    # Define os diretórios do workspace
-    workspace_root = os.getcwd()
-    temp_project_root = os.path.join(workspace_root, "TEMP_PROJECT")
-    mock_tree_root = os.path.join(workspace_root, "MOCK_TREE")
-    
     # Verifica se o arquivo está dentro do TEMP_PROJECT
     isInsideValidDir = True
     try:
-        rel_path = os.path.relpath(original_file, temp_project_root)
+        rel_path = os.path.relpath(original_file, runtime.DIR_TEMP_PROJECT)
     except ValueError:
         isInsideValidDir = False
         #print("Erro: o arquivo não está dentro do diretório TEMP_PROJECT.")
@@ -50,7 +41,7 @@ def main():
     # ou se o arquivo está dentro do MOCK_TREE
     if isInsideValidDir == False:
         try:
-            rel_path = os.path.relpath(original_file, mock_tree_root)
+            rel_path = os.path.relpath(original_file, runtime.DIR_SHADOW_MOCKS)
         except ValueError:
             print("Erro: o arquivo não está dentro do diretório TEMP_PROJECT ou do diretório MOCK_TREE.")
             sys.exit(1)
@@ -64,7 +55,7 @@ def main():
     original_filename = os.path.basename(original_file)
     
     # Cria a mesma estrutura de diretórios em MOCK_TREE
-    target_dir = os.path.join(mock_tree_root, rel_dir)
+    target_dir = os.path.join(runtime.DIR_SHADOW_MOCKS, rel_dir)
     os.makedirs(target_dir, exist_ok=True)
     
     # Define o nome do arquivo mock com prefixo "__mock__"
@@ -90,6 +81,3 @@ def main():
     
     # Abre o arquivo mock no VS Code e garante que a aba seja selecionada
     subprocess.run(["code", "--goto", mock_file_path])
-
-if __name__ == "__main__":
-    main()

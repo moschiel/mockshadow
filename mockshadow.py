@@ -26,11 +26,16 @@ run_debug = False
 run_list = False
 run_clone_tree = False
 run_clone_project = False
+run_open_mock = False
+open_mock_file = ""
 
 # Processa os argumentos da linha de comando
 for arg in sys.argv[1:]:
     if run_create_project:
         create_project_name = arg
+        break
+    if run_open_mock:
+        open_mock_file = arg
         break
 
     if arg == "version":
@@ -63,24 +68,36 @@ for arg in sys.argv[1:]:
         run_clone_tree = True
     elif arg == "clone-project":
         run_clone_project = True
+    elif arg == "open-mock":
+        run_open_mock = True
     else:
         print(f"Warning: Unknown argument '{arg}'")
 
 # Executa as funções de acordo com as flags
 if run_version:
     print("mockshadow version 1.0")
+    sys.exit(0)
 
 if run_create_project:
     mock_utils.create_mockshadow_project(create_project_name)
+    sys.exit(0)
 
 if run_list:
     mock_utils.list_mocks()
+    sys.exit(0)
 
 if run_clone_tree:
     mock_utils.clone_project_tree()
+    sys.exit(0)
 
 if run_clone_project:
     mock_utils.clone_project()
+    sys.exit(0)
+
+if run_open_mock:
+    import open_mock
+    open_mock.open_mock(open_mock_file)
+    sys.exit(0)
 
 if run_mock or run_remock:
     mock_args = []
