@@ -4,9 +4,9 @@
         {
             "label": "Open Mock",
             "type": "shell",
-            "command": "python3",
+            "command": "mockshadow",
             "args": [
-                "${workspaceFolder}/.mockshadow/open-mock.py",
+                "open-mock",
                 "${file}"
             ],
             "presentation": {
