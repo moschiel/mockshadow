@@ -72,7 +72,7 @@ def copy_project_content(src: str, dest: str, compare_dates: bool = False):
 
         for item in os.listdir(src):
             if item in exclude_items:
-                print(f"Ignorando item: {item}")
+                print(f"Ignored: {item}")
                 continue
 
             src_item = os.path.join(src, item)
@@ -88,7 +88,7 @@ def copy_project_content(src: str, dest: str, compare_dates: bool = False):
 
         for item in os.listdir(src):
             if item in exclude_items:
-                print(f"Ignorando item: {item}")
+                print(f"Ignored: {item}")
                 continue
 
             src_item = os.path.join(src, item)
