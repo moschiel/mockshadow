@@ -857,40 +857,56 @@ def mock_text_replace(mock_file_cmds: str, mock_file_to_create: str, show_detail
     inside_mock_block = False
     MOCK_CMD = ""
     count = 0
+    REPLACE_MODE = ""
+    NEW_TEXT = ""
+    CURR_TEXT = ""
     
     # Lê todas as linhas do arquivo de comandos (preservando quebras de linha)
     with open(mock_file_cmds, "r", encoding=ENCODING) as f:
         cmds_lines = f.readlines()
     
-    curr_text = ""
     # Itera sobre cada linha (contabilizando o número da linha)
     for line in cmds_lines:
         count += 1
         line = line.rstrip("\n")
         
-        pattern = r"__MOCK_REPLACE_TEXT: \s*(.*)"
+        pattern = r"__MOCK_REPLACE_TEXT_(START|LINE): \s*(.*)"
         m = re.search(pattern, line)
         if m:
-            curr_text = m.group(1)
-            MOCK_CMD = line
             if inside_mock_block:
                 mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Nested instruction, expected text to replace")
                 sys.exit(1)
+            
             inside_mock_block = True
+            REPLACE_MODE = m.group(1)  # "START" ou "LINE"
+            CURR_TEXT = m.group(2)
+            MOCK_CMD = line
+            
             if show_details:
-                print(f"      replace text [${curr_text}]")        
-        elif (inside_mock_block):
-            inside_mock_block = False
-            new_text = line.strip()
+                print(f"      replace text [${CURR_TEXT}]")        
+        elif (line.strip() == "//__MOCK_REPLACE_TEXT_END" or REPLACE_MODE == "LINE"):
+            if not inside_mock_block:
+                mock_err_msg(count, mock_file_cmds, line, "Missing initial __MOCK_REPLACE_TEXT_START:")
+                sys.exit(1)
+                
+            if REPLACE_MODE == "LINE":
+                NEW_TEXT += line
+            NEW_TEXT = NEW_TEXT.rstrip()
             content = ""
             with open(mock_file_to_create, "r", encoding=ENCODING) as f:
                 content = f.read()
-            if content.count(curr_text) == 0:
-                mock_err_msg(count, mock_file_cmds, MOCK_CMD, f"Not found text to replace '${curr_text}'")
+            if content.count(CURR_TEXT) == 0:
+                mock_err_msg(count, mock_file_cmds, MOCK_CMD, f"Not found text to replace '${CURR_TEXT}'")
                 sys.exit(1)
-            content = content.replace(curr_text, new_text)
+            content = content.replace(CURR_TEXT, NEW_TEXT)
             with open(mock_file_to_create, 'w', encoding=ENCODING) as f:
                 f.write(content)
+        
+            NEW_TEXT = "" # reseta o conteúdo
+            REPLACE_MODE = ""  # Reseta o modo
+            inside_mock_block = False
+        elif inside_mock_block:
+            NEW_TEXT += line + "\n"
 
     if inside_mock_block:
         mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Block not terminated properly.")
