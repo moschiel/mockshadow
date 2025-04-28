@@ -403,16 +403,16 @@ def mock_remove_content(mock_file_cmds: str, mock_file_to_create: str, show_deta
                 with open(mock_file_to_create, 'w', encoding=ENCODING) as mf:
                     mf.writelines(new_lines)
 
-def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
+def mock_replace_code(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
     """
     Processa o arquivo de comandos de mock (mock_file_cmds) e substitui blocos de conteúdo
     no arquivo de mock (mock_file_to_create) conforme instruções do tipo:
     
-      __MOCK_REPLACE_START: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      __MOCK_REPLACE_CODE_START: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
       ... (conteudo multilinha que irá sobrescrever o conteudo original ) ...
-      //__MOCK_REPLACE_END
+      //__MOCK_REPLACE_CODE_END
 
-      __MOCK_REPLACE_LINE: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+      __MOCK_REPLACE_CODE_LINE: <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
       ... (conteudo com uma unica linha que irá sobrescrever o conteudo original) ...
       
     Para cada bloco, a função:
@@ -422,7 +422,7 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
       - Extrai o conteúdo do bloco do arquivo de comandos e insere esse conteúdo
         no arquivo de mock, substituindo as linhas entre DEST_START_LINE e DEST_END_LINE.
     
-    Se ocorrer algum erro (como instrução aninhada ou falta de __MOCK_REPLACE_END),
+    Se ocorrer algum erro (como instrução aninhada ou falta de __MOCK_REPLACE_CODE_END),
     a função chama mock_err_msg() e encerra.
     """
     # Verifica se os arquivos existem
@@ -449,12 +449,12 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
         count += 1
         line = line.rstrip("\n")
         
-        # Procura instruções do tipo __MOCK_REPLACE_(START|LINE): <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
-        pattern = r"__MOCK_REPLACE_(START|LINE):\s+(\S+)\s+(\S+)(\s+.*)?"
+        # Procura instruções do tipo __MOCK_REPLACE_CODE_(START|LINE): <EXTRACT_TYPE> <EXTRACT_NAME> [extra-args]
+        pattern = r"__MOCK_REPLACE_CODE_(START|LINE):\s+(\S+)\s+(\S+)(\s+.*)?"
         m = re.search(pattern, line)
         if m:
             if inside_mock_block:
-                mock_err_msg(count, mock_file_cmds, line, "Nested instruction, expected __MOCK_REPLACE_END")
+                mock_err_msg(count, mock_file_cmds, line, "Nested instruction, expected __MOCK_REPLACE_CODE_END")
                 sys.exit(1)
             inside_mock_block = True
             MOCK_CMD = line
@@ -468,12 +468,12 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
             EXTRA_ARGS = "lines " + mount_extractor_extra_args(EXTRA_ARGS)
             
             if show_details:
-                print(f"      replace original {EXTRACT_TYPE} '{EXTRACT_NAME}'")
+                print(f"      replace code {EXTRACT_TYPE} '{EXTRACT_NAME}'")
         
         # Verifica se a linha marca o fim do bloco ou, no modo LINE, finaliza imediatamente
-        elif (line.strip() == "//__MOCK_REPLACE_END" or REPLACE_MODE == "LINE"):
+        elif (line.strip() == "//__MOCK_REPLACE_CODE_END" or REPLACE_MODE == "LINE"):
             if not inside_mock_block:
-                mock_err_msg(count, mock_file_cmds, line, "Missing initial __MOCK_REPLACE_START:")
+                mock_err_msg(count, mock_file_cmds, line, "Missing initial __MOCK_REPLACE_CODE_START:")
                 sys.exit(1)
             REPLACE_MODE = ""  # Reseta o modo
             inside_mock_block = False
@@ -535,7 +535,7 @@ def mock_replace_content(mock_file_cmds: str, mock_file_to_create: str, show_det
     
     # Verifica se algum bloco ficou aberto sem encerramento
     if inside_mock_block:
-        mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Missing __MOCK_REPLACE_END")
+        mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Missing __MOCK_REPLACE_CODE_END")
         sys.exit(1)
 
 def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
@@ -994,7 +994,7 @@ def mock_project(*args):
                         # Processa as seções: remove, replace, insert top/bottom, add before/after
                         mock_text_replace(mock_file, mock_file_to_create, show_details)
                         mock_remove_content(mock_file, mock_file_to_create, show_details)
-                        mock_replace_content(mock_file, mock_file_to_create, show_details)
+                        mock_replace_code(mock_file, mock_file_to_create, show_details)
                         insert_mock_top_or_bottom(mock_file, mock_file_to_create, show_details)
                         mock_add_content_before_or_after(mock_file, mock_file_to_create, show_details)
                     else:

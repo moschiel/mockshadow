@@ -5,18 +5,18 @@
       "//__MOCK_COPY_FILE_CONTENT__"
     ]
   },
-  "MOCK_REPLACE_START": {
-    "prefix": "mrs",
+  "MOCK_REPLACE_CODE_START": {
+    "prefix": "mrcs",
     "body": [
-      "//__MOCK_REPLACE_START: function ${1:name}",
+      "//__MOCK_REPLACE_CODE_START: function ${1:name}",
       "${0:// conteúdo aqui}",
-      "//__MOCK_REPLACE_END"
+      "//__MOCK_REPLACE_CODE_END"
     ]
   },
-  "MOCK_REPLACE_LINE": {
-    "prefix": "mrl",
+  "MOCK_REPLACE_CODE_LINE": {
+    "prefix": "mrcl",
     "body": [
-      "//__MOCK_REPLACE_LINE: macro ${1:name}",
+      "//__MOCK_REPLACE_CODE_LINE: macro ${1:name}",
       "${0:// conteúdo de linha única aqui}"
     ]
   },

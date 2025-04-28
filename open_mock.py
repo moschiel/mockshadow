@@ -74,7 +74,7 @@ def open_mock(original_file: str):
         clipboard_content = get_clipboard_content().strip()
         if clipboard_content:
             # Monta o bloco a ser inserido (com uma linha em branco antes)
-            block="\n\n//__MOCK_REPLACE_START: function name\n" + clipboard_content + "\n//__MOCK_REPLACE_END\n"
+            block="\n\n//__MOCK_REPLACE_CODE_START: function name\n" + clipboard_content + "\n//__MOCK_REPLACE_CODE_END\n"
             # Abre o arquivo mock em modo append e insere o bloco
             with open(mock_file_path, "a", encoding="utf-8") as f:
                 f.write(block)
