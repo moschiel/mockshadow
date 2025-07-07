@@ -20,6 +20,8 @@ On Ubuntu or WSL:Run `python3 setup.py`
 On Windows: In development
 
 
+**Usage Example**: Soon.
+
 
 
 
