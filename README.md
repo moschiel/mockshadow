@@ -15,7 +15,7 @@ In short: the real code stays clean and version‑controlled; the shadow can und
 
 On Ubuntu or WSL:Run `python3 setup.py`
 
-On Windows:Run `python setup.py` (Dependencies for Windows are still being finalized)
+On Windows: In development
 
 
 
