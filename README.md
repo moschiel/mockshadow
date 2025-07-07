@@ -1,6 +1,6 @@
 # mockshadow
 
-**mockshadow** is a command‑line tool that creates a _shadow tree_ of your C project, where any **function, typedef, enum, struct, union, or variable** can be replaced by a user‑written mock implementation — all without touching your original source files.
+**mockshadow** is a command‑line tool that creates a _shadow tree_ of your C project, where any **function, variable, macro, typedef, enum, struct or union** can be replaced by a user‑written mock implementation — all without touching your original source files.
 
 **Motivation**: I wanted to run and debug an embedded firmware as a regular process on my PC, mocking every hardware dependency and without needing the real board.
 
