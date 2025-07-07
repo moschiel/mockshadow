@@ -6,7 +6,7 @@
 
 mockshadow **does not compile** anything: it only performs textual substitution and produces a copy of the sources already modified. Writing Makefiles, CMakeLists, or any other build script remains 100 % up to the user.
 
-Instead of manual patches inside the production sources, the developer creates parallel files (prefixed with __mock__) containing textual instructions that specify _what_ to replace and _with what_. 
+Instead of manual patches inside the production sources, the developer creates parallel files (prefixed with **__**__mock__**__**) containing textual instructions that specify _what_ to replace and _with what_. 
 When you run `mockshadow mock`, the tool locates the symbol in the original code and generates a modified copy in an output folder.
 
 In short: the real code stays clean and version‑controlled; the shadow can undergo any mutation needed for testing.
