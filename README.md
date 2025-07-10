@@ -1,27 +1,56 @@
 # mockshadow
 
-**Motivation**: I wanted to run and debug an embedded firmware as a regular process on my PC, mocking every hardware dependency and without needing the real board. I wasn't interested in unit testing — I actually wanted to simulate the full firmware execution. So I created **mockshadow** to help me mock hardware dependencies more easily.
+## Motivation
+I wanted to **run and debug embedded firmware for microcontrollers on my PC** while the real hardware is either unavailable or inconvenient.  Unit testing alone doesn’t cut it—I want to execute the *entire* firmware, see it interact, crash, leak, and behave similarly as it would on a microcontroller.
 
-**mockshadow** is a command‑line tool that creates a _shadow tree_ of your C project, where any **function, variable, macro, typedef, enum, struct or union** can be replaced by a user‑written mock implementation — all without touching your original source files.
+The problem: some legacy projects I have to debug are tightly coupled to HALs, registers, and inline assembly. Sprinkling preprocessor directivies like `#ifdef SIMULATION` everywhere quickly becomes un‑maintainable.  I needed a cleaner way.
 
-Instead of manual patches inside the production sources, the developer creates parallel files (prefixed with **__**__mock__**__**) containing textual instructions that specify _what_ to replace and _with what_. 
-When you run `mockshadow mock`, the tool locates the symbol in the original code and generates a modified copy in an output folder.
+**mockshadow** is the tool I wrote to make that possible.
 
-mockshadow **does not compile** anything: it only performs textual substitution and produces a copy of the sources already modified. It's up to the user to write Makefiles, CMakeLists, or any other build system needed to compile and run the mocked code on their PC.
+---
 
-In short: the real code stays clean and version‑controlled; the shadow can undergo any mutation needed for testing.
+## What mockshadow *is*
+A CLI that builds a *shadow copy* of your C project where any function, variable, macro, typedef, enum, struct, or union can be swapped for a user‑written mock **without modifying the original source tree**.
 
+---
 
+## What mockshadow *does not* do
+* ❌ *Generate* mocks for you – you still write the replacement code.
+* ❌ Fix compilation errors automatically – you decide what must be mocked or stubbed.
+* ❌ Compile or link – it only rewrites text.
 
-**To install all dependencies**:
+---
 
-On Ubuntu or WSL:Run `python3 setup.py`
+## What mockshadow *does* very well
+* ✅ Uses Clang to pinpoint symbols accurately (no brittle regex).
+* ✅ Applies all substitutions in one shot, producing a clean *shadow tree*.
+* ✅ Leaves the pristine firmware untouched and under version control.
+* ✅ Eliminates the flood of pre‑processor directives usually required for simulation builds.
 
-On Windows: In development
+---
 
+## Practical workflow
+1. **Attempt to compile** the firmware natively – watch it fail on register access, inline ASM, HAL calls…
+2. **Create a mock file** under `MOCK_TREE/…/__mock__*.c` or `.h`, containing directives that say *what* to replace and *with what*.
+3. Run `mockshadow mock` – the tool clones the project, applies your mocks and writes the result to `SHADOW_OUT/…`.
+4. **Build the shadow tree** with your favourite system (Make, CMake, VSCode tasks…).
+5. Execute the firmware as a normal PC process, run sanitizers, fuzzers, debuggers—you name it.
 
-**Usage Example**: Soon.
+---
 
+## Installation
+```bash
+# Ubuntu / WSL
+python3 setup.py install
 
+# Windows
+# (dependency list still being finalised – libclang & Python 3.8+ required)
+python setup.py install
+```
 
+---
 
+## Current status
+The project is **experimental but functional**.  A hands‑on example that mocks a simple STM32 HAL project is on the way.
+
+PRs, issues and feedback are welcome!
