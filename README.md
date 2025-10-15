@@ -39,13 +39,26 @@ A CLI that builds a *shadow copy* of your C project where any function, variable
 ---
 
 ## Installation
+
+1. Clone Submodules (clang-code-extractor submudule will be cloned)
+```bash
+# Linux
+sudo git submodule update --init --recursive
+
+# Windows
+git submodule update --init --recursive
+```
+
+2. Install Dependencies listed on clang-code-extractor/README.md
+
+3. Execute setup.py
 ```bash
 # Ubuntu / WSL
-python3 setup.py install
+python3 setup.py
 
 # Windows
 # (dependency list still being finalised – libclang & Python 3.8+ required)
-python setup.py install
+python setup.py
 ```
 
 ---
