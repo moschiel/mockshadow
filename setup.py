@@ -3,6 +3,9 @@ import os
 import subprocess
 import sys
 import platform
+import shutil
+import urllib.request
+import zipfile
 
 def run_command(cmd, shell=False):
     """Executa um comando com subprocess.run e check=True."""
@@ -28,25 +31,47 @@ def make_scripts_executable(root_dir):
                 except Exception as e:
                     print(f"Warning: cannot change permission for {filepath}: {e}")
 
+def download_clang_code_extractor():
+    is_windows = platform.system().lower() == "windows"
+    
+    # Download clang-code-extractor
+    zip_file = "clang-code-extractor.zip"
+    clang_extractor_dir = "clang-code-extractor"
+    if is_windows:
+        url = "https://github.com/moschiel/clang-code-extractor/releases/download/v1.0.0/clang-code-extractor-windows-x64.zip"
+    else:
+        url = "https://github.com/moschiel/clang-code-extractor/releases/download/v1.0.0/clang-code-extractor-ubuntu-x64.zip"
+
+    # Download the ZIP file
+    print(f"Downloading 'clang-code-extractor' from {url}...")
+    urllib.request.urlretrieve(url, zip_file)
+    
+    # Remove old clang-code-extractor directory
+    if os.path.exists(clang_extractor_dir):
+        shutil.rmtree(clang_extractor_dir)
+
+    # Extract the ZIP file
+    print(f"Extracting {zip_file}...")
+    with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+        zip_ref.extractall(clang_extractor_dir)
+
+    # Remove ZIP file
+    os.remove(zip_file)
+        
+
 def main():
     # Obtém o diretório onde o script está (raiz do projeto)
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    system = platform.system()
+    is_windows = platform.system().lower() == "windows"
 
-    # Inicializa submódulos
-    print("Initializing submodules")
-    if system == "Windows":
-        run_command(["git", "submodule", "update", "--init", "--recursive"])
-    else:
-        run_command(["sudo", "git", "submodule", "update", "--init", "--recursive"])
-
-    if system != "Windows":
+    if is_windows:
         print("Setting execution permission for scripts")
         make_scripts_executable(script_dir)
 
     mockshadow_path = os.path.join(script_dir, "mockshadow.py")
+
     # Cria link simbólico para "mockshadow" de forma que possa ser chamado de qualquer diretório
-    if system == "Windows":
+    if is_windows:
         # No Windows, tente criar um symlink (pode ser necessário executar como administrador ou habilitar o Developer Mode)
         symlink_path = os.path.join(script_dir, "mockshadow_link")
         try:
@@ -75,14 +100,7 @@ def main():
         run_command(["sudo", "apt", "install", "--reinstall", "libclang-18-dev"])
 
 
-
-    # Build do clang-code-extractor usando a versão Python (build.py)
-    print("Building clang-code-extractor")
-    clang_dir = os.path.join(script_dir, "clang-code-extractor")
-    os.chdir(clang_dir)
-    # Executa o build.py; se necessário, adicione sudo conforme seu ambiente
-    run_command([sys.executable, "build.py"])
-    os.chdir(script_dir)
+    download_clang_code_extractor()
 
     print("mockshadow setup complete!")
 
