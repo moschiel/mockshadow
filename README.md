@@ -51,6 +51,14 @@ python3 setup.py
 python setup.py
 ```
 
+3. **Add to Path (Windows only)**  
+    On Windows, you must add mockshadow directory to PATH variable.
+
+4. **Test installation**
+```bash
+mockshadow version
+``` 
+
 ---
 
 ## Current status

@@ -46,19 +46,7 @@ def main():
 
     mockshadow_path = os.path.join(script_dir, "mockshadow.py")
     # Cria link simbólico para "mockshadow" de forma que possa ser chamado de qualquer diretório
-    if system == "Windows":
-        # No Windows, tente criar um symlink (pode ser necessário executar como administrador ou habilitar o Developer Mode)
-        symlink_path = os.path.join(script_dir, "mockshadow_link")
-        try:
-            if os.path.exists(symlink_path):
-                os.remove(symlink_path)
-            os.symlink(mockshadow_path, symlink_path)
-            print(f"Created symbolic link: {symlink_path}")
-            print("Please add this directory to your PATH to use 'mockshadow' from any location.")
-        except Exception as e:
-            print("Failed to create symbolic link on Windows:", e)
-            print("Please add the project directory to your PATH manually.")
-    else:
+    if system != "Windows":
         # Em Linux/Unix, cria o link em /usr/local/bin
         symlink_path = "/usr/local/bin/mockshadow"
         print(f"Adding symbolic link for '{mockshadow_path}' into '{symlink_path}'")
@@ -85,6 +73,9 @@ def main():
     os.chdir(script_dir)
 
     print("mockshadow setup complete!")
+
+    if system == "Windows":
+        print("Please, remember to add this folder to PATH system variable !!!")
 
 if __name__ == "__main__":
     main()
