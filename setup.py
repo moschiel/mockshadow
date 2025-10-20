@@ -65,10 +65,10 @@ def main():
     run_command([sys.executable, "build.py"])
     os.chdir(script_dir)
 
-    print("mockshadow setup complete!")
+    print("Mockshadow setup COMPLETE!")
 
     if system == "Windows":
-        print("Please, remember to add this folder to PATH system variable !!!")
+        print(f"Please, remember to add to PATH the mockshadow directory ( {script_dir} )")
 
 if __name__ == "__main__":
     main()

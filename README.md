@@ -48,8 +48,8 @@ sudo git submodule update --init --recursive
 git submodule update --init --recursive
 ```
 
-2. **Install clang-code-extractor submodule**
-    Follow submodule installation instructions at path `clang-code-extractor/README.md`
+2. **Install clang-code-extractor dependencies**
+    Follow **DEPENDENCIES** section listed on `clang-code-extractor/README.md`
 
 3. **Execute Mockshadow Setup Script**
 ```bash
@@ -60,7 +60,7 @@ python3 setup.py
 python setup.py
 ```
 
-4. **Add to Path (Windows only)**  
+4. **Add Mockshadow to Path (Windows only)**  
     On Windows, you must add mockshadow directory to PATH variable.
 
 5. **Test installation**
