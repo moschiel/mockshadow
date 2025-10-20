@@ -39,13 +39,16 @@ A CLI that builds a *shadow copy* of your C project where any function, variable
 ---
 
 ## Installation
+1. **Install clang-code-extractor submodule**
+    Follow submodule installation instructions at path `clang-code-extractor/README.md`
+
+2. **Execute Mockshadow Setup Script**
 ```bash
 # Ubuntu / WSL
-python3 setup.py install
+python3 setup.py
 
 # Windows
-# (dependency list still being finalised – libclang & Python 3.8+ required)
-python setup.py install
+python setup.py
 ```
 
 ---
