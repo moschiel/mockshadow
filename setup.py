@@ -32,14 +32,7 @@ def main():
     # Obtém o diretório onde o script está (raiz do projeto)
     script_dir = os.path.dirname(os.path.realpath(__file__))
     system = platform.system()
-
-    # Inicializa submódulos
-    print("Initializing submodules")
-    if system == "Windows":
-        run_command(["git", "submodule", "update", "--init", "--recursive"])
-    else:
-        run_command(["sudo", "git", "submodule", "update", "--init", "--recursive"])
-
+    
     if system != "Windows":
         print("Setting execution permission for scripts")
         make_scripts_executable(script_dir)

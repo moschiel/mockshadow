@@ -39,22 +39,31 @@ A CLI that builds a *shadow copy* of your C project where any function, variable
 ---
 
 ## Installation
-1. **Install clang-code-extractor submodule**
+1. **Initialize clang-code-extractor submodule**
+```bash
+# Ubuntu
+sudo git submodule update --init --recursive
+
+# Windows
+git submodule update --init --recursive
+```
+
+2. **Install clang-code-extractor submodule**
     Follow submodule installation instructions at path `clang-code-extractor/README.md`
 
-2. **Execute Mockshadow Setup Script**
+3. **Execute Mockshadow Setup Script**
 ```bash
-# Ubuntu / WSL
+# Ubuntu
 python3 setup.py
 
 # Windows
 python setup.py
 ```
 
-3. **Add to Path (Windows only)**  
+4. **Add to Path (Windows only)**  
     On Windows, you must add mockshadow directory to PATH variable.
 
-4. **Test installation**
+5. **Test installation**
 ```bash
 mockshadow version
 ``` 
