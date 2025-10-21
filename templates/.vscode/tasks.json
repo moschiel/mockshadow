@@ -5,10 +5,7 @@
             "label": "Open Mock",
             "type": "shell",
             "command": "mockshadow",
-            "args": [
-                "open-mock",
-                "${file}"
-            ],
+            "args": ["open-mock", "${file}"],
             "presentation": {
                 "echo": true,
                 "reveal": "always",
@@ -20,31 +17,92 @@
         {
             "label": "Clone Tree",
             "type": "shell",
-            "command": "mockshadow",
-            "args": [
-                "clone-tree"
-            ],
+            "command": "mockshadow clone-tree",
             "problemMatcher": []
         },
         {
             "label": "Mock",
             "type": "shell",
-            "command": "mockshadow",
-            "args": [
-                "mock",
-                "details"
-            ],
+            "command": "mockshadow mock details",
             "problemMatcher": []
         },
         {
             "label": "Remock",
             "type": "shell",
-            "command": "mockshadow",
-            "args": [
-                "remock",
-                "details"
-            ],
+            "command": "mockshadow remock details",
             "problemMatcher": []
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "linux": {
+                "command": "bash",
+                "args": [
+                    "-c",
+                    "cmake -S . -B build && cmake --build build"
+                ] 
+            },
+            "windows": {
+                "options": {
+                    "shell": {
+                        "executable": "C:\\Windows\\System32\\cmd.exe",
+                        "args": ["/d", "/c"]
+                    }
+                },
+                "command": "cmake -S . -B build -G \"MinGW Makefiles\" && cmake --build build"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Mock-Build",
+            "type": "shell",
+            "linux": {
+                "command": "bash",
+                "args": [
+                    "-c",
+                    "mockshadow mock details && cmake -S . -B build && cmake --build build"
+                ]    
+            },
+            "windows": {
+                "options": {
+                    "shell": {
+                        "executable": "C:\\Windows\\System32\\cmd.exe",
+                        "args": ["/d", "/c"]
+                    }
+                },
+                "command": "mockshadow mock details && cmake -S . -B build -G \"MinGW Makefiles\" && cmake --build build",
+            },
+            "problemMatcher": [],
+            "group": "build"
+        },
+        {
+            "label": "Remock-Rebuild",
+            "type": "shell",
+            "linux": {
+                "command": "bash",
+                "args": [
+                    "-c",
+                    "mockshadow remock details && rm -rf build && cmake -S . -B build && cmake --build build"
+                ]
+            },
+            "windows": {
+                "options": {
+                    "shell": {
+                        "executable": "C:\\Windows\\System32\\cmd.exe",
+                        "args": ["/d", "/c"]
+                    }
+                },
+                "command": "mockshadow remock details && if exist build rmdir /s /q build && cmake -S . -B build -G \"MinGW Makefiles\" && cmake --build build"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
         }
     ]
 }
