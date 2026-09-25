@@ -949,7 +949,7 @@ def mock_project(*args):
         return generate(runtime.DIR_MOCK_SHADOW_PROJECT, runtime.USER_ENV["originalProject"],
                         runtime.USER_CONFIGS, force="remock" in args, details="details" in args)
     except (OSError, ValueError, RuntimeError) as error:
-        sys.exit(f"Mock generation failed; previous shadow preserved: {error}")
+        sys.exit(f"Mock generation failed; do not build until generation succeeds: {error}")
 
 
 def create_mockshadow_project(project_name):

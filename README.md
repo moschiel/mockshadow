@@ -127,6 +127,12 @@ After a forced termination, verify the process stopped, remove stale
 Windows open file handles can prevent rename. No writable hardlinks are used;
 symlink/junction inputs are rejected.
 
+On Windows, sharing/lock violations are retried for up to five seconds per IO
+operation. Python's CRT may report a lock as EACCES without a Windows error code;
+that case is also retried, but persistent errors still fail. Recipe retries start
+from a fresh source copy. Cleanup failures produce a warning with the remaining
+directory, preserving the original diagnostic or a successful publication.
+
 The extractor still parses per directive and takes the first matching symbol;
 it may recover from Clang diagnostics. Sequential edits can change later parsing,
 so naive batching would change semantics. See [architecture](docs/architecture.md).

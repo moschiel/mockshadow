@@ -1,11 +1,13 @@
 """Content-addressed generation with staged publication of the complete shadow."""
 from contextlib import contextmanager
 import hashlib
+import errno
 import json
 import os
 from pathlib import Path
 import shutil
 import tempfile
+import time
 
 import mock_utils
 
@@ -13,9 +15,42 @@ MANIFEST = ".mockshadow-manifest.json"
 VERSION = 1
 
 
+def retry_io(operation, *args, timeout=5.0, **kwargs):
+    """Bounded retry for Windows locks, including CRT's lossy EACCES mapping."""
+    deadline = time.monotonic() + timeout
+    delay = 0.05
+    while True:
+        try:
+            return operation(*args, **kwargs)
+        except OSError as error:
+            winerror = getattr(error, "winerror", None)
+            transient = winerror in (32, 33) or (
+                os.name == "nt" and winerror is None and error.errno == errno.EACCES)
+            if not transient or time.monotonic() >= deadline:
+                raise
+            time.sleep(min(delay, max(0, deadline - time.monotonic())))
+            delay = min(delay * 2, 0.5)
+
+
+@contextmanager
+def staging_directory(parent):
+    path = Path(tempfile.mkdtemp(prefix="stage-", dir=parent))
+    try:
+        yield path
+    finally:
+        try:
+            retry_io(shutil.rmtree, path)
+        except OSError as error:
+            # Cleanup must not obscure the transformation error or turn an
+            # already-published generation into a reported generation failure.
+            print(f"Warning: staging cleanup deferred for {path}: {error}")
+
+
 def digest(path):
-    with path.open("rb") as stream:
-        return hashlib.file_digest(stream, "sha256").hexdigest()
+    def read():
+        with path.open("rb") as stream:
+            return hashlib.file_digest(stream, "sha256").hexdigest()
+    return retry_io(read)
 
 
 def fingerprint(value):
@@ -82,9 +117,9 @@ def generate(project, original, config, force=False, details=False):
         # Recover an interrupted rename before attempting any new work.
         if backup.exists():
             if not output.exists():
-                backup.rename(output)
+                retry_io(backup.rename, output)
             else:
-                shutil.rmtree(backup)
+                retry_io(shutil.rmtree, backup)
         return _generate(project, original, config, tree, output, backup, force, details)
 
 
@@ -125,13 +160,13 @@ def _generate(project, original, config, tree, output, backup, force, details):
     entries = {}
     reused = 0
     # Same volume as output: two directory renames, with rollback on publication failure.
-    with tempfile.TemporaryDirectory(prefix="stage-", dir=project / ".mockshadow") as temporary:
+    with staging_directory(project / ".mockshadow") as temporary:
         stage = Path(temporary) / "tree"
         stage.mkdir()
         for rel, source in {**sources, **additions}.items():
             target = stage / rel
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target)
+            retry_io(shutil.copy2, source, target)
         for rel, recipe in sorted(recipes.items()):
             dest = Path(rel).with_name(recipe.name.removeprefix("__mock__")).as_posix()
             source = original / dest
@@ -145,41 +180,46 @@ def _generate(project, original, config, tree, output, backup, force, details):
                 old = {}
             cached = output / dest
             if not force and old.get("key") == key and cached.is_file() and digest(cached) == old.get("output"):
-                shutil.copy2(cached, target)
+                retry_io(shutil.copy2, cached, target)
                 reused += 1
             else:
                 print(f"Transform: {rel}", flush=True)
-                if mock_utils.check_file_mock_mode(str(recipe)) == "copy":
-                    shutil.copy2(source, target)
-                    for transform in (mock_utils.mock_text_replace, mock_utils.mock_remove_content,
-                                      mock_utils.mock_replace_code, mock_utils.insert_mock_top_or_bottom,
-                                      mock_utils.mock_add_content_before_or_after):
-                        transform(str(recipe), str(target), details)
-                else:
-                    shutil.copy2(recipe, target)
+                def transform_file():
+                    if mock_utils.check_file_mock_mode(str(recipe)) == "copy":
+                        retry_io(shutil.copy2, source, target)
+                        for transform in (mock_utils.mock_text_replace, mock_utils.mock_remove_content,
+                                          mock_utils.mock_replace_code, mock_utils.insert_mock_top_or_bottom,
+                                          mock_utils.mock_add_content_before_or_after):
+                            transform(str(recipe), str(target), details)
+                    else:
+                        retry_io(shutil.copy2, recipe, target)
+                retry_io(transform_file)
                 # Preserve build timestamps when a forced transformation produces identical bytes.
                 if cached.is_file() and digest(cached) == digest(target):
-                    shutil.copystat(cached, target)
+                    retry_io(shutil.copystat, cached, target)
             entries[rel] = {"destination": dest, "key": key, "output": digest(target)}
         # Make/Ninja still use mtimes even though our cache uses hashes. Copying
         # old branch timestamps onto changed bytes would leave stale objects.
         for rel, target in inventory(stage).items():
             old_output = output / rel
             if old_output.is_file() and digest(target) == digest(old_output):
-                shutil.copystat(old_output, target)
+                retry_io(shutil.copystat, old_output, target)
             else:
-                os.utime(target, None)
+                retry_io(os.utime, target, None)
         manifest = {"version": VERSION, "context": context, "recipes": entries}
-        (stage / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+        retry_io((stage / MANIFEST).write_text, json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
         if output.exists():
-            output.rename(backup)
+            retry_io(output.rename, backup)
         try:
-            stage.rename(output)
+            retry_io(stage.rename, output)
         except BaseException:
             if backup.exists():
-                backup.rename(output)
+                retry_io(backup.rename, output)
             raise
         if backup.exists():
-            shutil.rmtree(backup)
+            try:
+                retry_io(shutil.rmtree, backup)
+            except OSError as error:
+                print(f"Warning: previous-tree cleanup deferred for {backup}: {error}")
     print(f"Published TEMP_PROJECT: {len(entries)} recipes, {reused} reused; {len(additions)} additions")
     return manifest
