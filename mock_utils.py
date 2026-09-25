@@ -944,92 +944,13 @@ def unmock_project():
 
 def mock_project(*args):
     import runtime
-    # Parse arguments
-    show_details = False
-    is_remock = False
-    for arg in args:
-        if arg == "details":
-            show_details = True
-        elif arg == "remock":
-            is_remock = True
+    from pipeline import generate
+    try:
+        return generate(runtime.DIR_MOCK_SHADOW_PROJECT, runtime.USER_ENV["originalProject"],
+                        runtime.USER_CONFIGS, force="remock" in args, details="details" in args)
+    except (OSError, ValueError, RuntimeError) as error:
+        sys.exit(f"Mock generation failed; previous shadow preserved: {error}")
 
-    proj_basename = os.path.basename(runtime.USER_ENV.get("originalProject", ""))
-
-    # Antes de mockar, se "remock" for solicitado, chama unmock_project()
-    if is_remock:
-        unmock_project()
-    else:
-        clone_project(True)
-
-    print("Creating Mock Files ...")
-    last_mock_timestamp = runtime.USER_ENV.get("lastMockTimestamp", 0)
-
-    # Itera sobre todos os arquivos .c e .h que iniciam com "__mock__" em DIR_SHADOW_MOCKS
-    for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
-        for filename in files:
-            if (filename.endswith(".c") or filename.endswith(".h")) and filename.startswith("__mock__"):
-                mock_file = os.path.join(root, filename)
-                mock_dir = os.path.dirname(mock_file)
-                mock_basename = os.path.basename(mock_file)
-                original_basename = mock_basename.replace("__mock__", "")
-                mock_file_to_create = os.path.join(mock_dir, original_basename)
-
-                # Remove DIR_SHADOW_MOCKS do caminho e junta com DIR_ORIGINAL_PROJECT para obter o arquivo original
-                partial_dir = os.path.relpath(mock_dir, runtime.DIR_SHADOW_MOCKS)
-                original_file = os.path.join(runtime.USER_ENV.get("originalProject"), partial_dir, original_basename)
-                validate_file_exists(original_file)
-
-                
-                if ((not os.path.isfile(mock_file_to_create)) or                # Se o arquivo a ser criado não existe 
-                    (os.stat(mock_file).st_mtime > last_mock_timestamp) or      # ou se o arquivo __mock__ foi modificado após o último mock
-                    (os.stat(original_file).st_mtime > last_mock_timestamp)):   # ou se o arquivo original foi modificado após o último mock
-
-                    mock_mode = check_file_mock_mode(mock_file)
-                    rel_path = os.path.relpath(mock_file_to_create, runtime.DIR_MOCK_SHADOW_PROJECT)
-                    print(f"  Creating {rel_path} (MOCK_MODE: {mock_mode})")
-
-                    if mock_mode == "copy":
-                        # Cria o arquivo de mock como cópia do arquivo original
-                        shutil.copy2(original_file, mock_file_to_create)
-                        # Processa as seções: remove, replace, insert top/bottom, add before/after
-                        mock_text_replace(mock_file, mock_file_to_create, show_details)
-                        mock_remove_content(mock_file, mock_file_to_create, show_details)
-                        mock_replace_code(mock_file, mock_file_to_create, show_details)
-                        insert_mock_top_or_bottom(mock_file, mock_file_to_create, show_details)
-                        mock_add_content_before_or_after(mock_file, mock_file_to_create, show_details)
-                    else:
-                        # Cria o arquivo de mock com o conteúdo do arquivo __mock__
-                        shutil.copy2(mock_file, mock_file_to_create)
-                        # Insere seções do conteúdo original no arquivo mockado
-                        insert_mock_original_content(original_file, mock_file_to_create, show_details)
-
-    # Atualiza o timestamp do último mock
-    last_mock_timestamp = int(time.time())
-    update_user_env_param("lastMockTimestamp", last_mock_timestamp)
-    print("Creating Mock Files Complete!")
-
-    print(f"Mocking {os.path.basename(runtime.DIR_TEMP_PROJECT)} ...")
-    # Itera sobre os mocks em DIR_SHADOW_MOCKS que são .c ou .h, mas não começam com "__mock__"
-    for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
-        for filename in files:
-            if (filename.endswith(".c") or filename.endswith(".h")) and not filename.startswith("__mock__"):
-                mock_file = os.path.join(root, filename)
-                proj_file = os.path.relpath(mock_file, runtime.DIR_SHADOW_MOCKS)
-                project_file_to_replace = os.path.join(runtime.DIR_TEMP_PROJECT, proj_file)
-
-                basename_project_to_mock = os.path.basename(runtime.DIR_TEMP_PROJECT)
-                print(f"  Mocking {os.path.join(basename_project_to_mock, proj_file)}")
-                file_basename = os.path.basename(proj_file)
-                if file_basename.startswith("__additional__"):
-                    # Arquivos __additional__ são copiados para o projeto
-                    os.makedirs(os.path.dirname(project_file_to_replace), exist_ok=True)
-                    shutil.copy2(mock_file, project_file_to_replace)
-                else:
-                    original_file = os.path.join(runtime.USER_ENV.get("originalProject"), proj_file)
-                    validate_file_exists(original_file)
-                    # Substitui o arquivo original pela versão mockada
-                    shutil.copy2(mock_file, project_file_to_replace)
-    print(f"Mocking {os.path.basename(runtime.DIR_TEMP_PROJECT)} Complete!")
 
 def create_mockshadow_project(project_name):
     # Verifica se o nome do projeto é válido

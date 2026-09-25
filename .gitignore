@@ -1,1 +1,9 @@
 __pycache__
+*.log
+**/.mockshadow/env.json
+**/.mockshadow/stage-*/
+**/.mockshadow/previous-tree/
+**/.mockshadow/generation.lock
+**/TEMP_PROJECT/
+examples/demo/simulator/demo
+examples/demo/simulator/demo.exe

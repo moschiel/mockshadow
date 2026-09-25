@@ -9,3 +9,6 @@ MOCK_TREE/**/*.h
 
 .mockshadow/env.json
 TEMP_PROJECT
+.mockshadow/stage-*/
+.mockshadow/previous-tree/
+.mockshadow/generation.lock

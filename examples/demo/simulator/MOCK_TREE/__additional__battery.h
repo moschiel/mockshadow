@@ -1,0 +1,1 @@
+#define SIM_BATTERY_MV 3700
