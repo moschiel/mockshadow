@@ -74,3 +74,27 @@ mockshadow version
 The project is **experimental but functional**.  A hands‑on example that mocks a simple STM32 HAL project is on the way.
 
 PRs, issues and feedback are welcome!
+
+## Audit an existing firmware checkout
+
+From the simulation project directory (with `.mockshadow/env.json` and
+`.mockshadow/config.json` configured), run:
+
+```powershell
+python ../mockshadow/mockshadow.py audit --report reports/mock-audit.json
+```
+
+The audit applies the same transformations as `mock` to disposable copies of
+each source file. It leaves the original firmware, `MOCK_TREE`, `TEMP_PROJECT`
+and `lastMockTimestamp` unchanged. It reports missing source files and the first
+transformation failure in **each** mock file, then continues with the other
+files. Exit status is 1 if any file fails, 0 otherwise. The extractor must have
+been built; it still writes its normal `definition.txt`/`lines.txt` scratch files.
+
+A passing audit confirms that replacements apply, not that the C code compiles,
+that signatures still match, or that hardware behavior is modeled correctly.
+Full-file replacements (`discard` mode) are checked only for source existence.
+The existing extractor accepts the first matching definition and can tolerate
+Clang diagnostics; this audit does not add strict semantic validation.
+
+Run the audit regression test with `python -m unittest discover -s tests -v`.

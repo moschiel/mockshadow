@@ -5,6 +5,10 @@ import subprocess
 import time
 import mock_utils
 
+if len(sys.argv) > 1 and sys.argv[1] == "audit":
+    import audit
+    sys.exit(audit.main(sys.argv[2:]))
+
 # Obtém o diretório do script (seguindo links simbólicos)
 script_mockshadow_dir = os.path.dirname(os.path.realpath(__file__))
 
