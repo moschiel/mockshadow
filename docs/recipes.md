@@ -34,6 +34,10 @@ int ReadBattery(void) { return SIM_BATTERY_MV; }
 
 Top blocks in headers go inside detected header guards. Text replacement is
 literal and may replace multiple occurrences. Prefer symbols for whole functions.
+Bottom blocks in C sources append after the final line (outside the last
+function), including when EOF lacks a newline. In headers they precede the final
+detected `#endif`, or append at EOF when no `#endif` exists. The historical
+off-by-one insertion was corrected; rebuild generated trees after updating.
 LINE inserts only the following line; use START/END for multiline replacements.
 Later lookups see earlier edits. Missing symbols/text are errors. First-match
 extraction and tolerated Clang diagnostics mean audit is not semantic validation;

@@ -622,14 +622,14 @@ def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, sho
                     # Procura a última ocorrência de "#endif"
                     endif_lines = [i + 1 for i, l in enumerate(dest_lines) if "#endif" in l]
                     if endif_lines:
-                        DEST_START_LINE = endif_lines[-1] - 1  # insere antes do #endif
+                        DEST_START_LINE = endif_lines[-1]  # indice de insercao: antes do #endif
                     else:
                         print("Aviso: Nenhum #endif encontrado. Inserindo no final do arquivo.")
-                        DEST_START_LINE = len(dest_lines)
+                        DEST_START_LINE = len(dest_lines) + 1
                 else:
                     with open(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
-                    DEST_START_LINE = len(dest_lines)
+                    DEST_START_LINE = len(dest_lines) + 1
             elif block_type == "MOCK_TOP":
                 if mock_file_to_create.endswith(".h"):
                     with open(mock_file_to_create, "r", encoding=ENCODING) as f:
@@ -646,6 +646,8 @@ def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, sho
             # Insere o conteúdo extraído no arquivo de destino
             with open(mock_file_to_create, "r", encoding=ENCODING) as f:
                 target_lines = f.readlines()
+            if DEST_START_LINE > 1 and target_lines and not target_lines[DEST_START_LINE - 2].endswith('\n'):
+                target_lines[DEST_START_LINE - 2] += '\n'
             new_content = target_lines[:DEST_START_LINE - 1] + block_content + target_lines[DEST_START_LINE - 1:]
             with open(mock_file_to_create, "w", encoding=ENCODING) as f:
                 f.writelines(new_content)
