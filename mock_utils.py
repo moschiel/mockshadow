@@ -383,7 +383,7 @@ def mock_remove_content(mock_file_cmds: str, mock_file_to_create: str, show_deta
                     sys.exit(1)
                 
                 # Lê o conteúdo do arquivo de mock
-                with open(mock_file_to_create, 'r', encoding=ENCODING) as mf:
+                with open_shadow_file(mock_file_to_create, 'r', encoding=ENCODING) as mf:
                     file_lines = mf.readlines()
                 
                 # Monta o novo conteúdo:
@@ -400,7 +400,7 @@ def mock_remove_content(mock_file_cmds: str, mock_file_to_create: str, show_deta
                     elif i > end_line:
                         new_lines.append(content)
                 # Escreve o novo conteúdo de volta para o arquivo
-                with open(mock_file_to_create, 'w', encoding=ENCODING) as mf:
+                with open_shadow_file(mock_file_to_create, 'w', encoding=ENCODING) as mf:
                     mf.writelines(new_lines)
 
 def mock_replace_code(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
@@ -519,7 +519,7 @@ def mock_replace_code(mock_file_cmds: str, mock_file_to_create: str, show_detail
             # - Mantém as linhas antes de DEST_START_LINE
             # - Insere o conteúdo do arquivo temporário no lugar das linhas de DEST_START_LINE até DEST_END_LINE
             # - Mantém as linhas após DEST_END_LINE
-            with open(mock_file_to_create, "r", encoding=ENCODING) as mf:
+            with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as mf:
                 mock_file_lines = mf.readlines()
             new_content = []
             new_content.extend(mock_file_lines[:DEST_START_LINE - 1])
@@ -527,7 +527,7 @@ def mock_replace_code(mock_file_cmds: str, mock_file_to_create: str, show_detail
                 temp_lines = tf.readlines()
             new_content.extend(temp_lines)
             new_content.extend(mock_file_lines[DEST_END_LINE:])
-            with open(mock_file_to_create, "w", encoding=ENCODING) as mf:
+            with open_shadow_file(mock_file_to_create, "w", encoding=ENCODING) as mf:
                 mf.writelines(new_content)
             
             # Remove o arquivo temporário
@@ -617,7 +617,7 @@ def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, sho
             # Para arquivos .h, tenta identificar os include guards
             if block_type == "MOCK_BOTTOM":
                 if mock_file_to_create.endswith(".h"):
-                    with open(mock_file_to_create, "r", encoding=ENCODING) as f:
+                    with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
                     # Procura a última ocorrência de "#endif"
                     endif_lines = [i + 1 for i, l in enumerate(dest_lines) if "#endif" in l]
@@ -627,12 +627,12 @@ def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, sho
                         print("Aviso: Nenhum #endif encontrado. Inserindo no final do arquivo.")
                         DEST_START_LINE = len(dest_lines) + 1
                 else:
-                    with open(mock_file_to_create, "r", encoding=ENCODING) as f:
+                    with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
                     DEST_START_LINE = len(dest_lines) + 1
             elif block_type == "MOCK_TOP":
                 if mock_file_to_create.endswith(".h"):
-                    with open(mock_file_to_create, "r", encoding=ENCODING) as f:
+                    with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
                     # Procura a primeira linha que inicia com "#define"
                     define_lines = [i + 1 for i, l in enumerate(dest_lines) if l.lstrip().startswith("#define")]
@@ -644,12 +644,12 @@ def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, sho
                     DEST_START_LINE = 1
             
             # Insere o conteúdo extraído no arquivo de destino
-            with open(mock_file_to_create, "r", encoding=ENCODING) as f:
+            with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as f:
                 target_lines = f.readlines()
             if DEST_START_LINE > 1 and target_lines and not target_lines[DEST_START_LINE - 2].endswith('\n'):
                 target_lines[DEST_START_LINE - 2] += '\n'
             new_content = target_lines[:DEST_START_LINE - 1] + block_content + target_lines[DEST_START_LINE - 1:]
-            with open(mock_file_to_create, "w", encoding=ENCODING) as f:
+            with open_shadow_file(mock_file_to_create, "w", encoding=ENCODING) as f:
                 f.writelines(new_content)
             continue
     # Final do loop de leitura
@@ -817,7 +817,7 @@ def process_add_command(mock_file_to_create: str, EXTRACT_TYPE: str, EXTRACT_NAM
         sys.exit(1)
     
     # Lê o conteúdo atual do arquivo de mock a ser atualizado
-    with open(mock_file_to_create, "r", encoding=ENCODING) as mf:
+    with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as mf:
         target_lines = mf.readlines()
     
     # Define a posição de inserção com base no tipo do comando:
@@ -837,7 +837,7 @@ def process_add_command(mock_file_to_create: str, EXTRACT_TYPE: str, EXTRACT_NAM
 
     # Constrói o novo conteúdo do arquivo
     new_content = target_lines[:insert_index] + block_content + target_lines[insert_index:]
-    with open(mock_file_to_create, "w", encoding=ENCODING) as mf:
+    with open_shadow_file(mock_file_to_create, "w", encoding=ENCODING) as mf:
         mf.writelines(new_content)
     
     #if show_details:
@@ -895,13 +895,13 @@ def mock_text_replace(mock_file_cmds: str, mock_file_to_create: str, show_detail
                 NEW_TEXT += line
             NEW_TEXT = NEW_TEXT.rstrip()
             content = ""
-            with open(mock_file_to_create, "r", encoding=ENCODING) as f:
+            with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as f:
                 content = f.read()
             if content.count(CURR_TEXT) == 0:
                 mock_err_msg(count, mock_file_cmds, MOCK_CMD, f"Not found text to replace '${CURR_TEXT}'")
                 sys.exit(1)
             content = content.replace(CURR_TEXT, NEW_TEXT)
-            with open(mock_file_to_create, 'w', encoding=ENCODING) as f:
+            with open_shadow_file(mock_file_to_create, 'w', encoding=ENCODING) as f:
                 f.write(content)
         
             NEW_TEXT = "" # reseta o conteúdo
@@ -1000,3 +1000,9 @@ def create_mockshadow_project(project_name):
     except Exception as e:
         print(f"❌ Error while creating project: {e}")
         sys.exit(1)
+
+
+def open_shadow_file(*args, **kwargs):
+    """Retry Windows locks before opening a shadow file, not a whole recipe."""
+    from pipeline import retry_io
+    return retry_io(open, *args, **kwargs)

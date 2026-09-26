@@ -22,3 +22,8 @@ first-match, early-exit extractor cannot safely batch by passing multiple flags.
 Other follow-ups: isolate extractor scratch files across projects, tokenized flag
 lists, explicit mappings for additions with ordinary names, strict opt-in
 diagnostics/signature validation. These are not implemented guarantees.
+
+Windows shadow-file opens retry transient locks before executing each write.
+Bounded publication retries also cover WinError 5 (directory rename can report
+access denied for a temporarily held directory); persistent access failures still
+stop generation and preserve the prior shadow.

@@ -23,10 +23,16 @@ class LockTests(unittest.TestCase):
         self.assertEqual(operation.call_count, 1)
         denied = PermissionError("access denied")
         denied.winerror = 5
+        operation = unittest.mock.Mock(side_effect=[denied, "published"])
+        self.assertEqual(retry_io(operation), "published")
         operation = unittest.mock.Mock(side_effect=denied)
         with self.assertRaises(PermissionError):
-            retry_io(operation)
+            retry_io(operation, timeout=0)
         self.assertEqual(operation.call_count, 1)
+        missing = unittest.mock.Mock(side_effect=FileNotFoundError())
+        with self.assertRaises(FileNotFoundError):
+            retry_io(missing)
+        self.assertEqual(missing.call_count, 1)
 
     def test_cleanup_cannot_mask_original_failure(self):
         with tempfile.TemporaryDirectory() as directory:

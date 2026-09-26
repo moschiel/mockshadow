@@ -24,7 +24,7 @@ def retry_io(operation, *args, timeout=5.0, **kwargs):
             return operation(*args, **kwargs)
         except OSError as error:
             winerror = getattr(error, "winerror", None)
-            transient = winerror in (32, 33) or (
+            transient = winerror in (5, 32, 33) or (
                 os.name == "nt" and winerror is None and error.errno == errno.EACCES)
             if not transient or time.monotonic() >= deadline:
                 raise
