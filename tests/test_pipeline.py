@@ -36,14 +36,14 @@ class PipelineTest(unittest.TestCase):
         os.utime(self.recipe, (stamp, stamp))
         second = self.run_generation()
         self.assertNotEqual(first["recipes"], second["recipes"])
-        self.assertEqual((self.project / "TEMP_PROJECT/foo.c").read_text(), "int value = 3;\n")
+        self.assertEqual((self.project / "shadow_output/foo.c").read_text(), "int value = 3;\n")
         (self.tree / "foo.c").write_text("stale legacy output")
         self.recipe.unlink()
         self.run_generation()
-        self.assertEqual((self.project / "TEMP_PROJECT/foo.c").read_text(), self.source.read_text())
+        self.assertEqual((self.project / "shadow_output/foo.c").read_text(), self.source.read_text())
         self.source.unlink()
         self.run_generation()
-        self.assertFalse((self.project / "TEMP_PROJECT/foo.c").exists())
+        self.assertFalse((self.project / "shadow_output/foo.c").exists())
 
     def test_source_flags_and_output_corruption_invalidate(self):
         first = self.run_generation()
@@ -53,13 +53,13 @@ class PipelineTest(unittest.TestCase):
         self.assertNotEqual(first["context"], second["context"])
         third = self.run_generation({"extractorCFlags": ["-DNEW_BRANCH"]})
         self.assertNotEqual(second["context"], third["context"])
-        (self.project / "TEMP_PROJECT/foo.c").write_text("corrupt")
+        (self.project / "shadow_output/foo.c").write_text("corrupt")
         self.run_generation()
-        self.assertEqual((self.project / "TEMP_PROJECT/foo.c").read_text(), self.recipe.read_text())
+        self.assertEqual((self.project / "shadow_output/foo.c").read_text(), self.recipe.read_text())
 
     def test_failure_preserves_complete_output_and_manifest(self):
         self.run_generation()
-        output = self.project / "TEMP_PROJECT"
+        output = self.project / "shadow_output"
         before = {p.name: p.read_bytes() for p in output.iterdir()}
         self.recipe.write_text("//__MOCK_COPY_FILE_CONTENT__\n//__MOCK_REPLACE_TEXT_LINE: absent\nreplacement\n")
         with self.assertRaises(SystemExit):
@@ -73,8 +73,8 @@ class PipelineTest(unittest.TestCase):
         (self.original / "excluded/secret.c").write_text("secret")
         (self.tree / "__additional__device.h").write_text("model")
         self.run_generation({"excludeFromCopy": ["excluded"]})
-        self.assertFalse((self.project / "TEMP_PROJECT/excluded").exists())
-        self.assertTrue((self.project / "TEMP_PROJECT/__additional__device.h").exists())
+        self.assertFalse((self.project / "shadow_output/excluded").exists())
+        self.assertTrue((self.project / "shadow_output/__additional__device.h").exists())
         with self.assertRaises(ValueError):
             self.run_generation({"addToCopy": [{"src": ".", "temp_dest": "../escape"}]})
         with self.assertRaises(ValueError):
@@ -82,7 +82,7 @@ class PipelineTest(unittest.TestCase):
 
     def test_publish_failure_rolls_back_and_interrupted_rename_recovers(self):
         self.run_generation()
-        output = self.project / "TEMP_PROJECT"
+        output = self.project / "shadow_output"
         before = (output / MANIFEST).read_bytes()
         rename = Path.rename
         def fail_publish(path, target):
@@ -108,7 +108,7 @@ class PipelineTest(unittest.TestCase):
     def test_old_branch_dates_cannot_leave_stale_compiler_objects(self):
         self.recipe.unlink()
         self.run_generation()
-        target = self.project / "TEMP_PROJECT/foo.c"
+        target = self.project / "shadow_output/foo.c"
         first_date = target.stat().st_mtime_ns
         self.run_generation()
         self.assertEqual(first_date, target.stat().st_mtime_ns)

@@ -8,7 +8,7 @@ MOCK_TREE/**/*.h
 !MOCK_TREE/**/__mock__*.h
 
 .mockshadow/env.json
-TEMP_PROJECT
+shadow_output
 .mockshadow/stage-*/
 .mockshadow/previous-tree/
 .mockshadow/generation.lock

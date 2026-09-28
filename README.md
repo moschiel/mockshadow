@@ -34,7 +34,7 @@ PowerShell `Copy-Item` or Linux `cp`. Then:
 
 ```sh
 python ../../../mockshadow.py mock
-gcc TEMP_PROJECT/main.c TEMP_PROJECT/adc.c -I TEMP_PROJECT -o demo
+gcc shadow_output/main.c shadow_output/adc.c -I shadow_output -o demo
 ./demo
 ```
 
@@ -84,7 +84,7 @@ file (discard mode), which still requires the original to exist. Review discard
 recipes when upgrading firmware: they can hide upstream changes.
 
 `MOCK_TREE/models/__additional__battery.c` becomes
-`TEMP_PROJECT/models/__additional__battery.c`, with its name preserved. It is
+`shadow_output/models/__additional__battery.c`, with its name preserved. It is
 ordinary C for model state, reset behavior and errors. Include it in your build.
 The prefix identifies additional source, not a particular kind of model.
 See [recipe reference](docs/recipes.md).
@@ -98,7 +98,7 @@ python /path/to/mockshadow/mockshadow.py remock
 
 `audit` applies recipes to disposable files and reports the first failure per
 file, continuing with the others; exit 1 means failure. It leaves source,
-MOCK_TREE, TEMP_PROJECT and cache unchanged. `remock` bypasses the cache;
+MOCK_TREE, shadow_output and cache unchanged. `remock` bypasses the cache;
 `details` adds diagnostics. Neither audit nor generation proves compilation,
 signature compatibility or runtime behavior. Legacy `build/run/debug` commands
 are placeholders: use the consuming simulator's build/launcher.
@@ -115,10 +115,10 @@ Changed output bytes receive a fresh timestamp so Make/Ninja rebuild even when
 the source branch has old dates. Identical output preserves its previous date.
 
 The entire tree is prepared under `.mockshadow/stage-*` and published only after
-all recipes succeed. Failures preserve the last good `TEMP_PROJECT`. Its
+all recipes succeed. Failures preserve the last good `shadow_output`. Its
 `.mockshadow-manifest.json` travels with it. Removed recipes restore source;
 removed inputs disappear. Old generated files beside recipes are ignored:
-inspect TEMP_PROJECT, edit only recipes/models.
+inspect shadow_output, edit only recipes/models.
 
 Publication uses same-volume renames with rollback. Do not compile while
 generating or edit inputs mid-generation. A lock rejects concurrent generators.

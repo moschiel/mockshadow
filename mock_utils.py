@@ -170,20 +170,20 @@ def list_mocks():
 
 def clone_project(compare_dates: bool = False):
     import runtime
-    print(f"Cloning Project {runtime.USER_ENV.get("originalProject")} to {runtime.DIR_TEMP_PROJECT}")
-    copy_project_content(runtime.USER_ENV.get("originalProject"), runtime.DIR_TEMP_PROJECT, compare_dates)
+    print(f"Cloning Project {runtime.USER_ENV.get("originalProject")} to {runtime.DIR_SHADOW_OUTPUT}")
+    copy_project_content(runtime.USER_ENV.get("originalProject"), runtime.DIR_SHADOW_OUTPUT, compare_dates)
     
     addToCopy = runtime.USER_CONFIGS.get("addToCopy")
     for item in runtime.USER_CONFIGS.get("addToCopy", []):
         src = item["src"]
         dest = item["temp_dest"]
         if isinstance(src, str) and isinstance(dest, str):
-            dest = os.path.join(runtime.DIR_TEMP_PROJECT, dest)
+            dest = os.path.join(runtime.DIR_SHADOW_OUTPUT, dest)
             print(f"Cloning {src} to {dest}")  
             copy_project_content(src, dest, compare_dates)      
 
     print(f"Removing '.git' directories from cloned project")
-    remover_git_dirs(runtime.DIR_TEMP_PROJECT)
+    remover_git_dirs(runtime.DIR_SHADOW_OUTPUT)
 
     print("Cloning Complete")
 

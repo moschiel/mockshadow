@@ -4,6 +4,6 @@ __pycache__
 **/.mockshadow/stage-*/
 **/.mockshadow/previous-tree/
 **/.mockshadow/generation.lock
-**/TEMP_PROJECT/
+**/shadow_output/
 examples/demo/simulator/demo
 examples/demo/simulator/demo.exe

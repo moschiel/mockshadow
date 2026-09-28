@@ -29,13 +29,13 @@ def open_mock(original_file: str):
         print("O arquivo deve ser .c ou .h para prosseguir.")
         sys.exit(1)
     
-    # Verifica se o arquivo está dentro do TEMP_PROJECT
+    # Verifica se o arquivo está dentro do shadow_output
     isInsideValidDir = True
     try:
-        rel_path = os.path.relpath(original_file, runtime.DIR_TEMP_PROJECT)
+        rel_path = os.path.relpath(original_file, runtime.DIR_SHADOW_OUTPUT)
     except ValueError:
         isInsideValidDir = False
-        #print("Erro: o arquivo não está dentro do diretório TEMP_PROJECT.")
+        #print("Erro: o arquivo não está dentro do diretório shadow_output.")
         #sys.exit(1)
 
     # ou se o arquivo está dentro do MOCK_TREE
@@ -43,11 +43,11 @@ def open_mock(original_file: str):
         try:
             rel_path = os.path.relpath(original_file, runtime.DIR_SHADOW_MOCKS)
         except ValueError:
-            print("Erro: o arquivo não está dentro do diretório TEMP_PROJECT ou do diretório MOCK_TREE.")
+            print("Erro: o arquivo não está dentro do diretório shadow_output ou do diretório MOCK_TREE.")
             sys.exit(1)
     
     if rel_path.startswith(".."):
-        print("Erro: o arquivo não está dentro do diretório TEMP_PROJECT ou do diretório MOCK_TREE.")
+        print("Erro: o arquivo não está dentro do diretório shadow_output ou do diretório MOCK_TREE.")
         sys.exit(1)
     
     # Obtém o caminho relativo (ex.: "path/to/file.c")

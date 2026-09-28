@@ -108,7 +108,7 @@ def generate(project, original, config, force=False, details=False):
     tree = project / "MOCK_TREE"
     if not tree.is_dir():
         raise ValueError(f"Mock tree does not exist: {tree}")
-    output = project / "TEMP_PROJECT"
+    output = project / "shadow_output"
     backup = project / ".mockshadow/previous-tree"
     for path in (tree, output, backup, project / ".mockshadow"):
         if path.is_symlink() or path.is_junction():
@@ -221,5 +221,5 @@ def _generate(project, original, config, tree, output, backup, force, details):
                 retry_io(shutil.rmtree, backup)
             except OSError as error:
                 print(f"Warning: previous-tree cleanup deferred for {backup}: {error}")
-    print(f"Published TEMP_PROJECT: {len(entries)} recipes, {reused} reused; {len(additions)} additions")
+    print(f"Published shadow_output: {len(entries)} recipes, {reused} reused; {len(additions)} additions")
     return manifest
