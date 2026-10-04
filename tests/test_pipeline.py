@@ -45,6 +45,23 @@ class PipelineTest(unittest.TestCase):
         self.run_generation()
         self.assertFalse((self.project / "shadow_output/foo.c").exists())
 
+    def test_cpp_recipes_additions_and_audit(self):
+        from audit import audit_project
+        (self.original / 'main.cpp').write_text('int main() { return 0; }\n')
+        recipe = self.tree / '__mock__main.cpp'
+        recipe.write_text('int main() { return 1; }\n')
+        (self.tree / '__additional__model.hpp').write_text('#pragma once\n')
+        self.run_generation()
+        self.assertEqual((self.project / 'shadow_output/main.cpp').read_text(), recipe.read_text())
+        self.assertTrue((self.project / 'shadow_output/__additional__model.hpp').exists())
+        report = audit_project(self.original, self.tree)
+        self.assertEqual(report['files'], 2)
+        self.assertEqual(report['failed'], 0)
+        recipe.unlink()
+        self.run_generation()
+        self.assertEqual((self.project / 'shadow_output/main.cpp').read_text(),
+                         (self.original / 'main.cpp').read_text())
+
     def test_source_flags_and_output_corruption_invalidate(self):
         first = self.run_generation()
         self.source.write_text("int value = 4;\n")
@@ -56,6 +73,17 @@ class PipelineTest(unittest.TestCase):
         (self.project / "shadow_output/foo.c").write_text("corrupt")
         self.run_generation()
         self.assertEqual((self.project / "shadow_output/foo.c").read_text(), self.recipe.read_text())
+
+    def test_cpp_header_insertions_stay_inside_guard(self):
+        (self.original / 'model.hpp').write_text('#ifndef MODEL_HPP\n#define MODEL_HPP\nint value;\n#endif\n')
+        (self.tree / '__mock__model.hpp').write_text(
+            '//__MOCK_COPY_FILE_CONTENT__\n'
+            '//__MOCK_TOP_START\nint top;\n//__MOCK_TOP_END\n'
+            '//__MOCK_BOTTOM_START\nint bottom;\n//__MOCK_BOTTOM_END\n')
+        self.run_generation()
+        result = (self.project / 'shadow_output/model.hpp').read_text()
+        self.assertLess(result.index('#define'), result.index('int top;'))
+        self.assertLess(result.index('int bottom;'), result.index('#endif'))
 
     def test_failure_preserves_complete_output_and_manifest(self):
         self.run_generation()

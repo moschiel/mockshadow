@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import time
 import json
+from source_types import SOURCE_EXTENSIONS, HEADER_EXTENSIONS
 
 ENCODING="latin-1"
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -616,7 +617,7 @@ def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, sho
             # Determina a linha de destino para a inserção no arquivo de destino
             # Para arquivos .h, tenta identificar os include guards
             if block_type == "MOCK_BOTTOM":
-                if mock_file_to_create.endswith(".h"):
+                if mock_file_to_create.endswith(HEADER_EXTENSIONS):
                     with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
                     # Procura a última ocorrência de "#endif"
@@ -631,7 +632,7 @@ def insert_mock_top_or_bottom(mock_file_cmds: str, mock_file_to_create: str, sho
                         dest_lines = f.readlines()
                     DEST_START_LINE = len(dest_lines) + 1
             elif block_type == "MOCK_TOP":
-                if mock_file_to_create.endswith(".h"):
+                if mock_file_to_create.endswith(HEADER_EXTENSIONS):
                     with open_shadow_file(mock_file_to_create, "r", encoding=ENCODING) as f:
                         dest_lines = f.readlines()
                     # Procura a primeira linha que inicia com "#define"
@@ -916,7 +917,7 @@ def mock_text_replace(mock_file_cmds: str, mock_file_to_create: str, show_detail
 
 def unmock_project():
     """
-    Remove todos os arquivos com extensão .c ou .h dentro de DIR_SHADOW_MOCKS,
+    Remove todos os fontes C/C++ dentro de DIR_SHADOW_MOCKS,
     exceto aqueles cujo nome comece com "__mock__" ou "__additional__". Após a limpeza,
     chama clone_project().
 
@@ -928,8 +929,8 @@ def unmock_project():
     # Percorre recursivamente o diretório DIR_SHADOW_MOCKS
     for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
         for file in files:
-            # Filtra arquivos com extensão .c ou .h, mas exclui os que começam com "__mock__" ou "__additional__"
-            if (file.endswith(".c") or file.endswith(".h")) and not (file.startswith("__mock__") or file.startswith("__additional__")):
+            # Preserve recipes and additions while cleaning generated C/C++ sources.
+            if os.path.splitext(file)[1] in SOURCE_EXTENSIONS and not (file.startswith("__mock__") or file.startswith("__additional__")):
                 file_path = os.path.join(root, file)
                 try:
                     os.remove(file_path)

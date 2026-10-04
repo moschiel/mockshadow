@@ -10,6 +10,7 @@ import tempfile
 import time
 
 import mock_utils
+from source_types import SOURCE_EXTENSIONS
 
 
 def audit_project(original, mock_tree):
@@ -23,7 +24,7 @@ def audit_project(original, mock_tree):
     started = time.monotonic()
     with tempfile.TemporaryDirectory(prefix="mockshadow-audit-") as scratch:
         for mock in sorted(mock_tree.rglob("__mock__*")):
-            if mock.suffix not in (".c", ".h"):
+            if mock.suffix not in SOURCE_EXTENSIONS:
                 continue
             relative = mock.relative_to(mock_tree)
             source_relative = relative.with_name(mock.name.removeprefix("__mock__"))

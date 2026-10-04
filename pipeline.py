@@ -10,6 +10,7 @@ import tempfile
 import time
 
 import mock_utils
+from source_types import SOURCE_EXTENSIONS
 
 MANIFEST = ".mockshadow-manifest.json"
 VERSION = 1
@@ -138,8 +139,8 @@ def _generate(project, original, config, tree, output, backup, force, details):
         sources = {k: v for k, v in sources.items() if k != destination and not k.startswith(destination + "/")}
         sources.update({f"{destination}/{k}": v for k, v in inventory(source).items()})
     mock_files = inventory(tree)
-    recipes = {k: v for k, v in mock_files.items() if v.name.startswith("__mock__") and v.suffix in (".c", ".h")}
-    additions = {k: v for k, v in mock_files.items() if v.name.startswith("__additional__") and v.suffix in (".c", ".h")}
+    recipes = {k: v for k, v in mock_files.items() if v.name.startswith("__mock__") and v.suffix in SOURCE_EXTENSIONS}
+    additions = {k: v for k, v in mock_files.items() if v.name.startswith("__additional__") and v.suffix in SOURCE_EXTENSIONS}
     tool_root = Path(__file__).parent
     tool_files = list(tool_root.glob("*.py")) + list((tool_root / "clang-code-extractor").glob("*.py"))
     tool_files += list((tool_root / "clang-code-extractor/build").glob("extractor*"))

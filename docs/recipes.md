@@ -42,3 +42,6 @@ LINE inserts only the following line; use START/END for multiline replacements.
 Later lookups see earlier edits. Missing symbols/text are errors. First-match
 extraction and tolerated Clang diagnostics mean audit is not semantic validation;
 inspect generated code and compile to detect signature/definition conflicts.
+
+C++ recipes/additions: .cpp, .cc, .cxx, .hpp, .hh and .hxx are supported, in addition to .c/.h. Use qualified method names and -xc++ for C++ headers; overload targets must be unambiguous. Firmware defines/includes remain the consumer's responsibility.
+
