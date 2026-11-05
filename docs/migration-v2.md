@@ -21,3 +21,14 @@ This is a breaking format and CLI change. No runtime compatibility loader exists
 Missing/excluded targets, duplicate targets, unsafe paths, ambiguous destinations
 and malformed headers are errors. No recipes or model sources are deleted by CLI.
 The original firmware remains separate. Physical IO guards must remain enabled.
+
+## Verified consumers (Windows, 2026-11-05)
+
+MSC: 56 recipes, 1513 generated files. ISV: 11 recipes, 125 generated files.
+SHT: 6 recipes, 70 generated files. All output hashes matched the previous tool
+(excluding manifests), and all original-source hashes remained unchanged.
+Mockshadow: 14 tests and compiled demo (battery=3700 mV). MSC: 87 tests, audit,
+native build and 90-second cold boot/reset/SD/ESP32 smoke. ISV: J1939/MB11500
+release/debug builds and smoke. SHT: release/debug builds, smoke, Chrome C
+breakpoint/DWARF with responsive UI. Signal Generator: 157 tests, 5 runner tests,
+lint and web build. Linux runtime and physical hardware were not validated.
