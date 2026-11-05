@@ -7,7 +7,7 @@ recipes for external functions; it does not handle every transformation.
 
 Implemented: content hashes including config/extractor, verified cached outputs,
 staged clean inventory, deleted-input handling, project lock, publication rollback
-and recovery, non-destructive audit. Generated code no longer pollutes MOCK_TREE.
+and recovery, non-destructive audit. Generated code no longer pollutes the recipe directory.
 Physical copies remain independent. Input changes conservatively invalidate all
 recipes, including dependencies on headers modified by another recipe. Unchanged
 runs reuse all verified transforms. Finer invalidation needs extractor dependency
@@ -20,10 +20,14 @@ overlaps and compare with sequential output before enabling. The current
 first-match, early-exit extractor cannot safely batch by passing multiple flags.
 
 Other follow-ups: isolate extractor scratch files across projects, tokenized flag
-lists, explicit mappings for additions with ordinary names, strict opt-in
+lists, strict opt-in
 diagnostics/signature validation. These are not implemented guarantees.
 
 Windows shadow-file opens retry transient locks before executing each write.
 Bounded publication retries also cover WinError 5 (directory rename can report
 access denied for a temporarily held directory); persistent access failures still
 stop generation and preserve the prior shadow.
+
+Version 2: recipes.py owns metadata/discovery and shared transformations.
+Pipeline and audit share the complete input inventory. Recipe order is by target,
+not recipe name. Configuration and manifests require v2; no legacy fallback.

@@ -10,10 +10,10 @@ import tempfile
 import time
 
 import mock_utils
-from source_types import SOURCE_EXTENSIONS
+from recipes import relative_path, local_path, validate_config, discover, apply_recipe
 
 MANIFEST = ".mockshadow-manifest.json"
-VERSION = 1
+VERSION = 2
 
 
 def retry_io(operation, *args, timeout=5.0, **kwargs):
@@ -58,13 +58,6 @@ def fingerprint(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
 
-def relative_path(value):
-    path = Path(value)
-    if path.is_absolute() or not path.parts or ".." in path.parts or path.drive:
-        raise ValueError(f"Expected a relative destination inside the shadow: {value}")
-    return path
-
-
 def inventory(root, excludes=()):
     """Exact root-relative exclusions, plus VCS metadata; never follow links."""
     result = {}
@@ -106,7 +99,7 @@ def generate(project, original, config, force=False, details=False):
         raise ValueError("Firmware and simulator must be separate, non-nested directories")
     if not original.is_dir():
         raise ValueError(f"Original source directory does not exist: {original}")
-    tree = project / "MOCK_TREE"
+    tree = local_path(project, validate_config(config).as_posix())
     if not tree.is_dir():
         raise ValueError(f"Mock tree does not exist: {tree}")
     output = project / "shadow_output"
@@ -124,11 +117,27 @@ def generate(project, original, config, force=False, details=False):
         return _generate(project, original, config, tree, output, backup, force, details)
 
 
-def _generate(project, original, config, tree, output, backup, force, details):
+def prepare_inputs(project, original, config):
+    if project == original or project in original.parents or original in project.parents:
+        raise ValueError('Firmware and simulator must be separate, non-nested directories')
+    if not original.is_dir():
+        raise ValueError(f'Original source directory does not exist: {original}')
+    validate_config(config)
+    recipes = discover(project, config)
     sources = inventory(original, config.get("excludeFromCopy", []))
+    originals = dict(sources)
+    output = project / "shadow_output"
+    dependency_destinations = []
     for item in config.get("addToCopy", []):
+        if not isinstance(item, dict) or set(item) != {'src', 'temp_dest'}:
+            raise ValueError('addToCopy entries require src and temp_dest')
         destination = relative_path(item["temp_dest"]).as_posix()
-        source = (project / item["src"]).resolve()
+        folded = destination.casefold()
+        if any(folded == old or folded.startswith(old + '/') or old.startswith(folded + '/')
+               for old in dependency_destinations):
+            _collision(destination)
+        dependency_destinations.append(folded)
+        source = local_path(project, item["src"])
         if not source.is_dir():
             raise ValueError(f"Missing addToCopy directory: {source}")
         # Local dependencies like FreeRTOS are valid; generated/config inputs are not.
@@ -138,9 +147,44 @@ def _generate(project, original, config, tree, output, backup, force, details):
             raise ValueError(f"Unsafe addToCopy source: {source}")
         sources = {k: v for k, v in sources.items() if k != destination and not k.startswith(destination + "/")}
         sources.update({f"{destination}/{k}": v for k, v in inventory(source).items()})
-    mock_files = inventory(tree)
-    recipes = {k: v for k, v in mock_files.items() if v.name.startswith("__mock__") and v.suffix in SOURCE_EXTENSIONS}
-    additions = {k: v for k, v in mock_files.items() if v.name.startswith("__additional__") and v.suffix in SOURCE_EXTENSIONS}
+    additions = {}
+    for item in config.get('additionalFiles', []):
+        if not isinstance(item, dict) or set(item) != {'source', 'destination'}:
+            raise ValueError('additionalFiles entries require source and destination')
+        source = local_path(project, item['source'])
+        if source.relative_to(project).parts[0] in ('shadow_output', '.mockshadow'):
+            raise ValueError(f'Generated/config input is not allowed: {source}')
+        if not source.is_file():
+            raise ValueError(f'Missing additional file: {source}')
+        destination = relative_path(item['destination']).as_posix()
+        additions[destination] = source if destination not in additions else _collision(destination)
+    destinations = {}
+    for dest in [*sources, *additions]:
+        folded = dest.casefold()
+        if folded in destinations:
+            _collision(dest)
+        destinations[folded] = dest
+    for dest in destinations:
+        parts = dest.split('/')
+        if parts[0] in ('.git', '.svn', '.mockshadow') or dest == MANIFEST:
+            raise ValueError(f'Reserved output path: {dest}')
+        if any('/'.join(parts[:i]) in destinations for i in range(1, len(parts))):
+            _collision(dest)
+    for dest, recipe in recipes.items():
+        if dest not in originals:
+            raise ValueError(f'{recipe.path}: target missing or excluded from original: {dest}')
+        if dest not in sources or sources[dest] != originals[dest]:
+            raise ValueError(f'{recipe.path}: target replaced by addToCopy: {dest}')
+    return sources, additions, recipes
+
+
+def _collision(destination):
+    raise ValueError(f'Output destination collision: {destination}')
+
+
+def _generate(project, original, config, tree, output, backup, force, details):
+    sources, additions, recipes = prepare_inputs(project, original, config)
+
     tool_root = Path(__file__).parent
     tool_files = list(tool_root.glob("*.py")) + list((tool_root / "clang-code-extractor").glob("*.py"))
     tool_files += list((tool_root / "clang-code-extractor/build").glob("extractor*"))
@@ -149,12 +193,12 @@ def _generate(project, original, config, tree, output, backup, force, details):
         "additions": {k: digest(v) for k, v in additions.items()},
         # A recipe can alter a header included by another transformation. Until
         # the extractor reports dependencies, invalidate conservatively.
-        "recipes": {k: digest(v) for k, v in recipes.items()},
+        "recipes": {k: [v.mode, digest(v.path)] for k, v in recipes.items()},
         "tools": {str(p.relative_to(tool_root)): digest(p) for p in tool_files if p.is_file()}})
     previous = {}
     try:
         previous = json.loads((output / MANIFEST).read_text(encoding="utf-8"))
-        if not isinstance(previous, dict) or not isinstance(previous.get("recipes"), dict):
+        if not isinstance(previous, dict) or previous.get("version") != VERSION or not isinstance(previous.get("recipes"), dict):
             previous = {}
     except (FileNotFoundError, ValueError):
         pass
@@ -168,15 +212,15 @@ def _generate(project, original, config, tree, output, backup, force, details):
             target = stage / rel
             target.parent.mkdir(parents=True, exist_ok=True)
             retry_io(shutil.copy2, source, target)
-        for rel, recipe in sorted(recipes.items()):
-            dest = Path(rel).with_name(recipe.name.removeprefix("__mock__")).as_posix()
+        for dest, recipe in sorted(recipes.items()):
+            rel = recipe.path.relative_to(project).as_posix()
             source = original / dest
             if not source.is_file():
                 raise ValueError(f"Missing source for {rel}: {source}")
             target = stage / dest
             target.parent.mkdir(parents=True, exist_ok=True)
-            key = fingerprint([context, dest, digest(source), digest(recipe)])
-            old = previous.get("recipes", {}).get(rel, {})
+            key = fingerprint([context, dest, digest(source), digest(recipe.path), recipe.mode])
+            old = previous.get("recipes", {}).get(dest, {})
             if not isinstance(old, dict):
                 old = {}
             cached = output / dest
@@ -185,20 +229,11 @@ def _generate(project, original, config, tree, output, backup, force, details):
                 reused += 1
             else:
                 print(f"Transform: {rel}", flush=True)
-                def transform_file():
-                    if mock_utils.check_file_mock_mode(str(recipe)) == "copy":
-                        retry_io(shutil.copy2, source, target)
-                        for transform in (mock_utils.mock_text_replace, mock_utils.mock_remove_content,
-                                          mock_utils.mock_replace_code, mock_utils.insert_mock_top_or_bottom,
-                                          mock_utils.mock_add_content_before_or_after):
-                            transform(str(recipe), str(target), details)
-                    else:
-                        retry_io(shutil.copy2, recipe, target)
-                retry_io(transform_file)
+                retry_io(apply_recipe, recipe, source, target, details)
                 # Preserve build timestamps when a forced transformation produces identical bytes.
                 if cached.is_file() and digest(cached) == digest(target):
                     retry_io(shutil.copystat, cached, target)
-            entries[rel] = {"destination": dest, "key": key, "output": digest(target)}
+            entries[dest] = {"recipe": rel, "mode": recipe.mode, "destination": dest, "key": key, "output": digest(target)}
         # Make/Ninja still use mtimes even though our cache uses hashes. Copying
         # old branch timestamps onto changed bytes would leave stale objects.
         for rel, target in inventory(stage).items():

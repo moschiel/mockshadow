@@ -1,83 +1,28 @@
-import os
-import sys
+"""Resolve recipes by target, never by an inferred source-tree location."""
+from pathlib import Path
 import subprocess
-import tkinter as tk
-import runtime
+from recipes import discover, local_path, relative_path
+from source_types import SOURCE_EXTENSIONS
 
-paste_clipboard_content=False
 
-def get_clipboard_content():
-    try:
-        root = tk.Tk()
-        root.withdraw()
-        content = root.clipboard_get()
-        root.destroy()
-        return content
-    except Exception as e:
-        return ""
-
-def open_mock(original_file: str):
-    # Caminho do arquivo original
-    if not os.path.isfile(original_file):
-        print(f"Arquivo '{original_file}' não encontrado.")
-        sys.exit(1)
-    
-    # Verifica se a extensão do arquivo é .c ou .h
-    valid_extensions = ['.c', '.h']
-    _, ext = os.path.splitext(original_file)
-    if ext.lower() not in valid_extensions:
-        print("O arquivo deve ser .c ou .h para prosseguir.")
-        sys.exit(1)
-    
-    # Verifica se o arquivo está dentro do shadow_output
-    isInsideValidDir = True
-    try:
-        rel_path = os.path.relpath(original_file, runtime.DIR_SHADOW_OUTPUT)
-    except ValueError:
-        isInsideValidDir = False
-        #print("Erro: o arquivo não está dentro do diretório shadow_output.")
-        #sys.exit(1)
-
-    # ou se o arquivo está dentro do MOCK_TREE
-    if isInsideValidDir == False:
-        try:
-            rel_path = os.path.relpath(original_file, runtime.DIR_SHADOW_MOCKS)
-        except ValueError:
-            print("Erro: o arquivo não está dentro do diretório shadow_output ou do diretório MOCK_TREE.")
-            sys.exit(1)
-    
-    if rel_path.startswith(".."):
-        print("Erro: o arquivo não está dentro do diretório shadow_output ou do diretório MOCK_TREE.")
-        sys.exit(1)
-    
-    # Obtém o caminho relativo (ex.: "path/to/file.c")
-    rel_dir = os.path.dirname(rel_path)
-    original_filename = os.path.basename(original_file)
-    
-    # Cria a mesma estrutura de diretórios em MOCK_TREE
-    target_dir = os.path.join(runtime.DIR_SHADOW_MOCKS, rel_dir)
-    os.makedirs(target_dir, exist_ok=True)
-    
-    # Define o nome do arquivo mock com prefixo "__mock__"
-    mock_filename = "__mock__" + original_filename
-    mock_file_path = os.path.join(target_dir, mock_filename)
-    
-    # Se o arquivo mock não existir, cria-o
-    if not os.path.exists(mock_file_path):
-        with open(mock_file_path, "w", encoding="utf-8") as f:
-            f.write("")
-        with open(mock_file_path, "a", encoding="utf-8") as f:
-            f.write("//__MOCK_COPY_FILE_CONTENT__")
-
-    if paste_clipboard_content:
-        # Lê o conteúdo do clipboard (seleção ou o que foi copiado)
-        clipboard_content = get_clipboard_content().strip()
-        if clipboard_content:
-            # Monta o bloco a ser inserido (com uma linha em branco antes)
-            block="\n\n//__MOCK_REPLACE_CODE_START: function name\n" + clipboard_content + "\n//__MOCK_REPLACE_CODE_END\n"
-            # Abre o arquivo mock em modo append e insere o bloco
-            with open(mock_file_path, "a", encoding="utf-8") as f:
-                f.write(block)
-    
-    # Abre o arquivo mock no VS Code e garante que a aba seja selecionada
-    subprocess.run(["code", "--goto", mock_file_path])
+def open_mock(project, original, config, target, name=None, editor=None):
+    target = relative_path(target).as_posix()
+    if not local_path(original, target).is_file():
+        raise ValueError(f'Original target does not exist: {target}')
+    recipes = discover(project, config)
+    if target in recipes:
+        path = recipes[target].path
+        if name:
+            raise ValueError(f'A recipe already exists for {target}: {path}')
+    else:
+        root = project / config['mocksDirectory']
+        path = local_path(root, name or Path(target).name)
+        if path.suffix.lower() not in SOURCE_EXTENSIONS or Path(target).suffix.lower() not in SOURCE_EXTENSIONS:
+            raise ValueError('Recipe and target must have a supported C/C++ extension')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open('x', encoding='latin-1', newline='\n') as stream:
+            stream.write(f'//__MOCK_TARGET: {target}\n//__MOCK_MODE: patch\n')
+    print(path)
+    if editor:
+        subprocess.run([editor, str(path)], check=True)
+    return path

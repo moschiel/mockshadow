@@ -1,148 +1,57 @@
 #!/usr/bin/env python3
-import os
+"""Generate an isolated source tree using explicit version 2 mock recipes."""
+import argparse
+from pathlib import Path
 import sys
-import subprocess
-import time
-import mock_utils
 
-if len(sys.argv) > 1 and sys.argv[1] == "audit":
-    import audit
-    sys.exit(audit.main(sys.argv[2:]))
 
-# Obtém o diretório do script (seguindo links simbólicos)
-script_mockshadow_dir = os.path.dirname(os.path.realpath(__file__))
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
+    parser.add_argument('--version', action='version', version='Mockshadow 2.0')
+    commands = parser.add_subparsers(dest='command', required=True)
+    mock = commands.add_parser('mock', help='Generate shadow_output', allow_abbrev=False)
+    mock.add_argument('-f', '--force', action='store_true', help='Reapply recipes without the cache')
+    mock.add_argument('-v', '--details', action='store_true', help='Show transformation diagnostics')
+    audit = commands.add_parser('audit', help='Check recipes without publishing output', allow_abbrev=False)
+    audit.add_argument('-r', '--report', type=Path, help='Write a JSON report')
+    commands.add_parser('list', help='List recipes and their explicit destinations')
+    create = commands.add_parser('create-project', help='Create an empty v2 simulator project')
+    create.add_argument('name')
+    opening = commands.add_parser('open-mock', help='Find or create a recipe for a target', allow_abbrev=False)
+    opening.add_argument('target', help='Path relative to the original project')
+    opening.add_argument('--recipe', help='New recipe path relative to mocksDirectory')
+    opening.add_argument('--editor', help='Optional editor executable (otherwise print the path)')
+    args = parser.parse_args(argv)
+    try:
+        if args.command == 'create-project':
+            import mock_utils
+            mock_utils.create_mockshadow_project(args.name)
+            return 0
+        import runtime
+        project = Path(runtime.DIR_MOCK_SHADOW_PROJECT)
+        original = Path(runtime.USER_ENV['originalProject']).resolve()
+        config = runtime.USER_CONFIGS
+        if args.command == 'mock':
+            from pipeline import generate
+            generate(project, original, config, force=args.force, details=args.details)
+        elif args.command == 'audit':
+            from audit import run_audit
+            return run_audit(project, original, config, args.report)
+        elif args.command == 'list':
+            from pipeline import prepare_inputs
+            _, additions, recipes = prepare_inputs(project, original, config)
+            for target, recipe in sorted(recipes.items()):
+                print(f'{recipe.path.relative_to(project)} -> {target} ({recipe.mode})')
+            for target, path in sorted(additions.items()):
+                print(f'{path.relative_to(project)} -> {target} (additional)')
+        elif args.command == 'open-mock':
+            from open_mock import open_mock
+            open_mock(project, original, config, args.target, args.recipe, args.editor)
+        return 0
+    except (OSError, ValueError, RuntimeError) as error:
+        print(f'Mockshadow: {error}', file=sys.stderr)
+        return 1
 
-# Carrega as configurações e funções auxiliares
-# Presume que env.py e mock_utils.py estão no mesmo diretório do script
 
-# Flags para controlar a execução
-run_version = False
-run_create_project = False
-create_project_name = ""
-run_mock = False
-run_remock = False
-run_build = False
-run_rebuild = False
-run_exec = False
-run_unmock = False
-show_details = False
-run_debug = False
-run_list = False
-run_clone_tree = False
-run_clone_project = False
-run_open_mock = False
-open_mock_file = ""
-
-# Processa os argumentos da linha de comando
-for arg in sys.argv[1:]:
-    if run_create_project:
-        create_project_name = arg
-        break
-    if run_open_mock:
-        open_mock_file = arg
-        break
-
-    if arg == "version":
-        run_version = True
-    elif arg == "create-project":
-        run_create_project = True
-    elif arg == "details":
-        show_details = True
-    elif arg == "run":
-        run_mock = True
-        run_build = True
-        run_exec = True
-    elif arg == "mock":
-        run_mock = True
-    elif arg == "remock":
-        run_remock = True
-    elif arg == "build":
-        run_build = True
-    elif arg == "rebuild":
-        run_rebuild = True
-    elif arg == "exec":
-        run_exec = True
-    elif arg == "debug":
-        run_debug = True
-    elif arg == "unmock":
-        run_unmock = True
-    elif arg == "list":
-        run_list = True
-    elif arg == "clone-tree":
-        run_clone_tree = True
-    elif arg == "clone-project":
-        run_clone_project = True
-    elif arg == "open-mock":
-        run_open_mock = True
-    else:
-        print(f"Warning: Unknown argument '{arg}'")
-
-# Executa as funções de acordo com as flags
-if run_version:
-    print("mockshadow version 1.0")
-    sys.exit(0)
-
-if run_create_project:
-    mock_utils.create_mockshadow_project(create_project_name)
-    sys.exit(0)
-
-if run_list:
-    mock_utils.list_mocks()
-    sys.exit(0)
-
-if run_clone_tree:
-    mock_utils.clone_project_tree()
-    sys.exit(0)
-
-if run_clone_project:
-    mock_utils.clone_project()
-    sys.exit(0)
-
-if run_open_mock:
-    import open_mock
-    open_mock.open_mock(open_mock_file)
-    sys.exit(0)
-
-if run_mock or run_remock:
-    mock_args = []
-    if show_details:
-        mock_args.append("details")
-    if run_remock:
-        mock_args.append("remock")
-    mock_utils.mock_project(*mock_args)
-
-if run_build or run_rebuild:
-    print("TODO: run_build and run_rebuild")
-    """     
-    import runtime
-    build_dir = os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "build")
-    # Se rebuild, remove o diretório build
-    if run_rebuild:
-        # Usa a função já convertida para remover diretórios
-        mock_utils.remove_directory( build_dir )
-    # Se o diretório build não existir, cria-o
-    if not os.path.isdir(build_dir):
-        os.mkdir(build_dir)
-    os.chdir(build_dir)
-    print("Generating Makefile with CMake")
-    subprocess.run(["cmake", "../"], check=True)
-    print("Building Project...")
-    subprocess.run(["make"], check=True)
-    os.chdir(script_mockshadow_dir) """
-
-if run_exec or run_debug:
-    print("TODO: run_exec and run_debug")
-    """ 
-    import runtime
-    print("Executing Target...")
-    os.chdir(runtime.DIR_MOCK_SHADOW_PROJECT)
-    target_dir=os.path.join(runtime.DIR_MOCK_SHADOW_PROJECT, "build/executable")
-    if run_exec:
-        subprocess.run([target_dir], check=True)
-    else:
-        subprocess.run(["gdb", "-q", "--args", target_dir], check=True)
-    os.chdir(script_mockshadow_dir) """
-
-if run_unmock:
-    mock_utils.unmock_project()
-
+if __name__ == '__main__':
+    raise SystemExit(main())

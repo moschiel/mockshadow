@@ -1,9 +1,20 @@
 # Recipe reference
 
-Files retain the original extension. Sources/recipes use Latin-1. Markers are C
-comments. First-line `//__MOCK_COPY_FILE_CONTENT__` enables transformations;
-otherwise the whole recipe replaces the source. Original-content insertion in
-discard mode is a legacy TODO, not a supported feature.
+Version 2 recipes can have any supported C/C++ filename, regardless of target
+extension. Sources and recipe bodies use Latin-1. Each recipe starts with:
+
+```c
+//__MOCK_TARGET: src/adc.c
+//__MOCK_MODE: patch
+```
+
+Metadata belongs in the initial comment header, allowing comments and blank lines.
+Both fields are mandatory and unique. Paths use `/`, relative to the original
+root; absolute paths, traversal and duplicate targets (including case variants)
+are rejected. `patch` transforms a copy of the original. `replace` emits the body
+verbatim, excluding the metadata lines. Legacy COPY/DISCARD markers are rejected.
+One recipe owns one target. Recipes execute in lexicographic target-path order,
+independent of recipe names/locations. Preserve Latin-1 bytes when migrating.
 
 Phases run in this order, not arbitrary interleaving in the recipe:
 
@@ -23,7 +34,8 @@ flag splitting does not preserve quoted whitespace; avoid spaces in include path
 passed through extra flags. Source paths themselves may contain spaces.
 
 ```c
-//__MOCK_COPY_FILE_CONTENT__
+//__MOCK_TARGET: src/battery.c
+//__MOCK_MODE: patch
 //__MOCK_TOP_START
 #include "__additional__battery.h"
 //__MOCK_TOP_END

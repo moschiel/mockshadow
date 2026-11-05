@@ -4,7 +4,7 @@ Introduce this as a source transformer, not an instruction-set emulator. Read
 README.md, docs/recipes.md and docs/architecture.md, then the consuming simulator's
 AGENTS.md/config. Hardware models belong there, not in this generic tool.
 
-Permanent inputs: recipes `__mock__*`, sources `__additional__*`, config and source
+Permanent inputs: recipes under configured mocksDirectory with explicit TARGET/MODE, mapped additional files, config and source
 checkout. shadow_output/manifest are disposable. Never edit original firmware or
 generated code to fix a simulator. Preserve unknown-IO traps and Latin-1 source
 processing. No personal skill or absolute machine path is required.

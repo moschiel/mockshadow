@@ -1,1 +1,13 @@
-{"extractorCFlags": [], "excludeFromCopy": [], "addToCopy": []}
+{
+  "formatVersion": 2,
+  "mocksDirectory": "mocks",
+  "additionalFiles": [
+    {
+      "source": "support/__additional__battery.h",
+      "destination": "__additional__battery.h"
+    }
+  ],
+  "extractorCFlags": [],
+  "excludeFromCopy": [],
+  "addToCopy": []
+}

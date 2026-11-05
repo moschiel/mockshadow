@@ -15,179 +15,6 @@ from source_types import SOURCE_EXTENSIONS, HEADER_EXTENSIONS
 ENCODING="latin-1"
 script_dir = os.path.dirname(os.path.abspath(__file__))
 
-def validate_file_exists(file_path: str):
-    if not os.path.isfile(file_path):
-        print(f"Error: File '{file_path}' does not exist.")
-        sys.exit(1)
-
-def validate_directory_exists(directory: str):
-    """Termina o script se o diretório não existir."""
-    if not os.path.isdir(directory):
-        print(f"Error: Directory '{directory}' does not exist.")
-        sys.exit(1)
-
-def remove_directory(directory: str):
-    """
-    Exibe uma mensagem e remove o diretório se ele existir, 
-    replicando o comportamento de 'rm -rf DIR'.
-    """
-    print(f"Removing directory '{directory}'")
-    if os.path.isdir(directory):
-        shutil.rmtree(directory)
-
-def copy_project_content(src: str, dest: str, compare_dates: bool = False):
-    """
-    Copia recursivamente o conteúdo de 'src' para 'dest', ignorando os itens listados em 'excludeFromCopy'.
-    Quando 'compare_dates' é False (comportamento padrão):
-      - Remove o diretório de destino (se existir), recriando-o e copiando tudo.
-    Quando 'compare_dates' é True:
-      - Atualiza somente os arquivos que não existem em 'dest' ou cujas datas de modificação diferem.
-      - Para diretórios, se já existirem, a função é chamada recursivamente.
-    """
-    import runtime
-
-    # Lê os itens a serem excluídos
-    exclude_items = []
-    for item in runtime.USER_CONFIGS.get("excludeFromCopy", []):
-        if isinstance(item, str) and item.strip():
-            exclude_items.append(item.strip())
-    
-    def ignore_func(current, names):
-        """
-        Função auxiliar para o copytree: calcula o caminho relativo do diretório atual
-        em relação a 'src' e, para cada item, verifica se ele deve ser ignorado.
-        """
-        rel_current = os.path.relpath(current, src).replace("\\", "/")
-        ignored = []
-        for name in names:
-            candidate = name if rel_current == "." else f"{rel_current}/{name}"
-            if candidate in exclude_items:
-                ignored.append(name)
-        return ignored
-
-    if not compare_dates:
-        # Comportamento original: remove o diretório de destino e copia tudo de src
-        if os.path.exists(dest):
-            shutil.rmtree(dest)
-        os.makedirs(dest)
-
-        for item in os.listdir(src):
-            if item in exclude_items:
-                print(f"Ignored: {item}")
-                continue
-
-            src_item = os.path.join(src, item)
-            dest_item = os.path.join(dest, item)
-            if os.path.isdir(src_item):
-                shutil.copytree(src_item, dest_item, ignore=ignore_func)
-            else:
-                shutil.copy2(src_item, dest_item)
-    else:
-        # Comportamento incremental: só copia se a data de modificação for diferente
-        if not os.path.exists(dest):
-            os.makedirs(dest)
-
-        for item in os.listdir(src):
-            if item in exclude_items:
-                print(f"Ignored: {item}")
-                continue
-
-            src_item = os.path.join(src, item)
-            dest_item = os.path.join(dest, item)
-
-            if os.path.isdir(src_item):
-                if not os.path.exists(dest_item):
-                    shutil.copytree(src_item, dest_item, ignore=ignore_func)
-                else:
-                    # Atualiza recursivamente o conteúdo do diretório
-                    copy_project_content(src_item, dest_item, compare_dates=True)
-            else:
-                # Se o arquivo já existe, compara as datas de modificação
-                if os.path.exists(dest_item):
-                    src_mtime = os.path.getmtime(src_item)
-                    dest_mtime = os.path.getmtime(dest_item)
-                    if src_mtime != dest_mtime:
-                        shutil.copy2(src_item, dest_item)
-                else:
-                    shutil.copy2(src_item, dest_item)
-
-def remover_git_dirs(caminho_base):
-    for root, dirs, files in os.walk(caminho_base):
-        if '.git' in dirs:
-            caminho_git = os.path.join(root, '.git')
-            print(f'Removendo: {caminho_git}')
-            shutil.rmtree(caminho_git)
-            # Remove da lista para evitar que o os.walk entre nessa pasta
-            dirs.remove('.git')
-
-def clone_project_tree():
-    """
-    Clona a árvore de diretórios de 'DIR_ORIGINAL_PROJECT' para 'DIR_SHADOW_MOCKS',
-    ignorando os diretórios listados em 'excludeFromCopy'.
-    """
-    import runtime
-    print("Cloning Project Tree:", runtime.USER_ENV.get("originalProject"))
-
-    if not os.path.isdir(runtime.USER_ENV.get("originalProject")):
-        print(f"Erro: '{runtime.USER_ENV.get("originalProject")}' não é um diretório válido.")
-        sys.exit(1)
-
-    # Lê os itens a serem excluídos da copia
-    exclude_items = []
-    for item in runtime.USER_CONFIGS.get("excludeFromCopy", []):
-        if isinstance(item, str) and item.strip():
-            exclude_items.append(item.strip())
-    
-    for root, dirs, _ in os.walk(runtime.USER_ENV.get("originalProject")):
-        # Caminho relativo do diretório atual
-        rel_root = os.path.relpath(root, runtime.USER_ENV.get("originalProject")).replace("\\", "/")
-
-        # Atualiza a lista 'dirs' no local para evitar descer em subdiretórios excluídos
-        dirs[:] = [d for d in dirs
-                   if os.path.normpath(os.path.join(rel_root, d)).replace("\\", "/") not in exclude_items]
-
-        for d in dirs:
-            rel_path = os.path.relpath(os.path.join(root, d), runtime.USER_ENV.get("originalProject"))
-            new_dir = os.path.join(runtime.DIR_SHADOW_MOCKS, rel_path)
-            os.makedirs(new_dir, exist_ok=True)
-
-    print("Cloning Project Tree Complete!")
-
-def list_mocks():
-    import runtime
-    print("Mock List")
-    
-    # Percorre recursivamente o diretório DIR_SHADOW_MOCKS
-    for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
-        for filename in files:
-            if filename.startswith("__mock__") or filename.startswith("__additional__"):
-                # Obtém o caminho completo do arquivo
-                file_path = os.path.join(root, filename)
-                # Calcula o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT
-                relative_path = os.path.relpath(file_path, runtime.DIR_MOCK_SHADOW_PROJECT)
-                print(f"  {relative_path}")
-    
-    print("Mock List Complete!")
-
-def clone_project(compare_dates: bool = False):
-    import runtime
-    print(f"Cloning Project {runtime.USER_ENV.get("originalProject")} to {runtime.DIR_SHADOW_OUTPUT}")
-    copy_project_content(runtime.USER_ENV.get("originalProject"), runtime.DIR_SHADOW_OUTPUT, compare_dates)
-    
-    addToCopy = runtime.USER_CONFIGS.get("addToCopy")
-    for item in runtime.USER_CONFIGS.get("addToCopy", []):
-        src = item["src"]
-        dest = item["temp_dest"]
-        if isinstance(src, str) and isinstance(dest, str):
-            dest = os.path.join(runtime.DIR_SHADOW_OUTPUT, dest)
-            print(f"Cloning {src} to {dest}")  
-            copy_project_content(src, dest, compare_dates)      
-
-    print(f"Removing '.git' directories from cloned project")
-    remover_git_dirs(runtime.DIR_SHADOW_OUTPUT)
-
-    print("Cloning Complete")
-
 def get_user_configs():
     """
     Reads the .mockshadow/config.json and returns the configuration dictionary.
@@ -200,8 +27,11 @@ def get_user_configs():
         sys.exit("fatal: not a mockshadow project (missing .mockshadow/config.json)")
 
     try:
-        with open(file_config_json, "r", encoding=ENCODING) as f:
-            return json.load(f)
+        with open(file_config_json, "r", encoding="utf-8") as f:
+            config = json.load(f)
+        from recipes import validate_config
+        validate_config(config)
+        return config
     except json.JSONDecodeError:
         sys.exit("fatal: invalid JSON in .mockshadow/config.json")
 
@@ -272,30 +102,6 @@ def mount_extractor_extra_args(custom_extra_args: str) -> str:
     
     return combined_args
 
-def check_file_mock_mode(file_path: str) -> str:
-    """
-    Verifica o modo de mock do arquivo.
-    
-    Se o arquivo não existir, retorna "none".
-    Se a primeira linha do arquivo for:
-      - "//__MOCK_COPY_FILE_CONTENT__" → retorna "copy"
-      - "//__MOCK_DISCARD_FILE_CONTENT__" → retorna "discard"
-    Caso contrário, retorna "discard" (padrão).
-    """
-    if not os.path.isfile(file_path):
-        return "none"
-    
-    # Abre o arquivo e lê a primeira linha, removendo quebras de linha e carriage returns
-    with open(file_path, 'r', encoding=ENCODING) as f:
-        first_line = f.readline().rstrip('\r\n')
-    
-    if first_line == "//__MOCK_COPY_FILE_CONTENT__":
-        return "copy"
-    elif first_line == "//__MOCK_DISCARD_FILE_CONTENT__":
-        return "discard"
-    else:
-        return "discard"
-    
 def mock_err_msg(line_number, file, cmd, msg):
     """
     Exibe mensagens de erro com informações sobre o arquivo, linha, comando e mensagem.
@@ -845,9 +651,6 @@ def process_add_command(mock_file_to_create: str, EXTRACT_TYPE: str, EXTRACT_NAM
     #    pos_desc = "before" if command_position == "BEFORE" else "after"
     #    print(f"Inserted content {pos_desc} line {insert_index+1} in '{mock_file_to_create}'")
 
-def insert_mock_original_content(original_file: str, mock_file_to_create: str, show_details: bool):
-    print("TODO: insert_mock_original_content")
-
 def mock_text_replace(mock_file_cmds: str, mock_file_to_create: str, show_details: bool = False) -> None:
     # Verifica se os arquivos existem
     if not os.path.isfile(mock_file_cmds):
@@ -915,46 +718,6 @@ def mock_text_replace(mock_file_cmds: str, mock_file_to_create: str, show_detail
         mock_err_msg(count, mock_file_cmds, MOCK_CMD, "Block not terminated properly.")
         sys.exit(1)
 
-def unmock_project():
-    """
-    Remove todos os fontes C/C++ dentro de DIR_SHADOW_MOCKS,
-    exceto aqueles cujo nome comece com "__mock__" ou "__additional__". Após a limpeza,
-    chama clone_project().
-
-    Para arquivos removidos, exibe o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT.
-    """
-    import runtime
-    print("Cleaning", os.path.basename(runtime.DIR_SHADOW_MOCKS), "...")
-    
-    # Percorre recursivamente o diretório DIR_SHADOW_MOCKS
-    for root, dirs, files in os.walk(runtime.DIR_SHADOW_MOCKS):
-        for file in files:
-            # Preserve recipes and additions while cleaning generated C/C++ sources.
-            if os.path.splitext(file)[1] in SOURCE_EXTENSIONS and not (file.startswith("__mock__") or file.startswith("__additional__")):
-                file_path = os.path.join(root, file)
-                try:
-                    os.remove(file_path)
-                    # Calcula o caminho relativo a partir de DIR_MOCK_SHADOW_PROJECT
-                    relative_path = os.path.relpath(file_path, runtime.DIR_MOCK_SHADOW_PROJECT)
-                    print("  Removed", relative_path)
-                except Exception as e:
-                    print(f"Error removing file {file_path}: {e}", file=sys.stderr)
-    
-    print("Cleaning Complete!")
-    
-    # Chama a função clone_project para recriar a árvore de diretórios
-    clone_project()
-
-def mock_project(*args):
-    import runtime
-    from pipeline import generate
-    try:
-        return generate(runtime.DIR_MOCK_SHADOW_PROJECT, runtime.USER_ENV["originalProject"],
-                        runtime.USER_CONFIGS, force="remock" in args, details="details" in args)
-    except (OSError, ValueError, RuntimeError) as error:
-        sys.exit(f"Mock generation failed; do not build until generation succeeds: {error}")
-
-
 def create_mockshadow_project(project_name):
     # Verifica se o nome do projeto é válido
     if not project_name or not project_name.strip():
@@ -978,7 +741,7 @@ def create_mockshadow_project(project_name):
 
     try:
         # Cria a pasta do projeto
-        os.makedirs(project_path, exist_ok=True)
+        os.makedirs(project_path, exist_ok=False)
 
         # Copia .mockshadow
         dst_dot_mockshadow = os.path.join(project_path, ".mockshadow")
@@ -993,13 +756,13 @@ def create_mockshadow_project(project_name):
         shutil.copyfile(template_gitignore, dst_gitignore)
 
         # Cria o diretório MOCK_TREE
-        mock_tree_path = os.path.join(project_path, "MOCK_TREE")
+        mock_tree_path = os.path.join(project_path, "mocks")
         os.makedirs(mock_tree_path, exist_ok=True)
 
-        print(f"✅ MockShadow project created at: {project_path}")
+        print(f"MockShadow project created at: {project_path}")
 
     except Exception as e:
-        print(f"❌ Error while creating project: {e}")
+        print(f"Error while creating project: {e}")
         sys.exit(1)
 
 

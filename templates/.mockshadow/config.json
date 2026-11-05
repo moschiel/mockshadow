@@ -1,8 +1,8 @@
 {
-    "extractorCFlags": [
-    ],
-    "excludeFromCopy": [
-    ],
-    "addToCopy": [
-    ]
+  "formatVersion": 2,
+  "mocksDirectory": "mocks",
+  "additionalFiles": [],
+  "extractorCFlags": [],
+  "excludeFromCopy": [],
+  "addToCopy": []
 }

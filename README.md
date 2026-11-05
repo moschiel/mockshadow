@@ -17,7 +17,7 @@ git submodule update --init --recursive
 cd clang-code-extractor
 python build.py
 cd ..
-python mockshadow.py version
+python mockshadow.py --version
 ```
 
 Windows: use MSYS2 **MINGW64** LLVM/GCC, put its `bin` on PATH, and match
@@ -40,7 +40,7 @@ gcc shadow_output/main.c shadow_output/adc.c -I shadow_output -o demo
 
 PowerShell: `./demo.exe`. Expected output: **battery=3700 mV**. The original ADC
 returns zero; a symbol recipe substitutes a fixed model. A second `mock` reuses
-the transformed file. Edit `MOCK_TREE/__additional__battery.h`, then rerun.
+the transformed file. Edit `support/__additional__battery.h`, then rerun.
 
 ## Set up your own simulator
 
@@ -61,6 +61,9 @@ files and `.mockshadow/config.json`; keep local env and generated output ignored
 
 ```json
 {
+  "formatVersion": 2,
+  "mocksDirectory": "mocks",
+  "additionalFiles": [],
   "extractorCFlags": ["-DDEVICE_FAMILY", "-DENABLE_ADC"],
   "excludeFromCopy": ["build", ".settings"],
   "addToCopy": [{"src": "host-kernel", "temp_dest": "FreeRTOS"}]
@@ -70,38 +73,66 @@ files and `.mockshadow/config.json`; keep local env and generated output ignored
 Exclusions are exact root-relative paths, not globs. VCS metadata is excluded
 automatically. `addToCopy` replaces a destination subtree with a local dependency.
 
-For source `src/adc.c`, create `MOCK_TREE/src/__mock__adc.c`:
+Mockshadow 2 requires `formatVersion: 2` and `mocksDirectory: "mocks"` in
+config.json. Legacy projects must migrate; there is no filename-prefix fallback.
+Add `additionalFiles: []` when there are no extra sources.
+
+For source `src/adc.c`, create any C/C++ recipe, for example `mocks/sensors/battery.c`:
 
 ```c
-//__MOCK_COPY_FILE_CONTENT__
+//__MOCK_TARGET: src/adc.c
+//__MOCK_MODE: patch
 //__MOCK_REPLACE_CODE_START: function ReadBattery
 int ReadBattery(void) { return 3700; }
 //__MOCK_REPLACE_CODE_END
 ```
 
-The copy marker must be the first line. Without it the recipe replaces the whole
-file (discard mode), which still requires the original to exist. Review discard
-recipes when upgrading firmware: they can hide upstream changes.
+`patch` starts from the original. `replace` writes the recipe body, removing only
+the two metadata lines. Both require an existing, included original target.
+Metadata is mandatory in the initial comment header. One recipe owns each target;
+C/C++ files inside mocksDirectory are recipes, so put ordinary helpers elsewhere.
+Names and nesting are free; target paths use `/` relative to the original root.
+See [recipe reference](docs/recipes.md) and [migration](docs/migration-v2.md).
 
-`MOCK_TREE/models/__additional__battery.c` becomes
-`shadow_output/models/__additional__battery.c`, with its name preserved. It is
-ordinary C for model state, reset behavior and errors. Include it in your build.
-The prefix identifies additional source, not a particular kind of model.
-See [recipe reference](docs/recipes.md).
+Ordinary additional files use explicit mappings, without prefix semantics:
 
-```sh
-python /path/to/mockshadow/mockshadow.py audit --report reports/audit.json
-python /path/to/mockshadow/mockshadow.py mock
-# Build with your simulator's CMake/Make only after generation succeeds.
-python /path/to/mockshadow/mockshadow.py remock
+```json
+"additionalFiles": [
+  {"source": "support/battery.h", "destination": "host/battery.h"}
+]
 ```
 
-`audit` applies recipes to disposable files and reports the first failure per
-file, continuing with the others; exit 1 means failure. It leaves source,
-MOCK_TREE, shadow_output and cache unchanged. `remock` bypasses the cache;
-`details` adds diagnostics. Neither audit nor generation proves compilation,
-signature compatibility or runtime behavior. Legacy `build/run/debug` commands
-are placeholders: use the consuming simulator's build/launcher.
+Destinations cannot collide with sources or other additions. `addToCopy` explicitly
+replaces a dependency subtree; recipes cannot target excluded/replaced originals.
+
+## CLI
+
+Commands have no dash; options use `--` (or the documented short form).
+
+```sh
+python /path/to/mockshadow/mockshadow.py --help
+python /path/to/mockshadow/mockshadow.py --version
+python /path/to/mockshadow/mockshadow.py mock --details
+python /path/to/mockshadow/mockshadow.py mock --force
+python /path/to/mockshadow/mockshadow.py audit --report reports/audit.json
+python /path/to/mockshadow/mockshadow.py list
+python /path/to/mockshadow/mockshadow.py open-mock src/adc.c --recipe sensors/battery.c
+```
+
+`mock`: `-v/--details`, `-f/--force`. `audit`: `-r/--report`.
+`open-mock` prints the existing/new recipe; `--editor code` also opens it.
+`create-project NAME` creates an empty mocks directory and a version 2 config.
+Every command accepts `-h/--help`. Unknown arguments fail with exit code 2;
+operational errors return 1. Only successful generation permits a build.
+Removed: positional `details`, `remock`, `version`, `clone-tree`, `clone-project`,
+`unmock`, and the unfinished build/run/debug/exec/rebuild commands. Build and run
+through the consumer. Use `mock --force` and `--version` instead.
+
+Audit stages the same complete inputs and applies the same ordered operations as
+mock, without publishing or modifying source, recipes, output or cache. Inventory
+errors fail before transformation. Transformation failures are reported per recipe;
+subsequent checks are provisional when an earlier recipe failed. Audit does not
+prove compilation, signatures or runtime behavior.
 
 ## Cache and publication
 
@@ -136,7 +167,7 @@ directory, preserving the original diagnostic or a successful publication.
 The extractor still parses per directive and takes the first matching symbol;
 it may recover from Clang diagnostics. Sequential edits can change later parsing,
 so naive batching would change semantics. See [architecture](docs/architecture.md).
-Use `remock` after changing external includes/toolchain DLLs outside the hashed
+Use `mock --force` after changing external includes/toolchain DLLs outside the hashed
 inputs. Run audit/generation against one extractor checkout sequentially: its
 upstream scratch files are shared.
 
