@@ -23,3 +23,9 @@ audit, build, boot and behavior separately, with platform and limitations.
 Update these checked-in docs when commands, contracts or verified behavior change.
 Keep machine paths and temporary evidence in ignored files. Explain the project
 and next concrete build command to a new teammate before assuming prior context.
+
+For adapting firmware, read [.agents/skills/mockshadow-firmware/SKILL.md](.agents/skills/mockshadow-firmware/SKILL.md)
+and follow its relative references. Discovery and explicit use from a consumer are
+documented in [docs/agents.md](docs/agents.md). Keep one canonical workflow; the
+Claude Code entry only redirects to it. Reusable examples must be synthetic and
+must not import private consumer code, identifiers, paths, logs or data.

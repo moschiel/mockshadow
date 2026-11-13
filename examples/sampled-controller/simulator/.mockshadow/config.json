@@ -1,0 +1,12 @@
+{
+  "formatVersion": 2,
+  "mocksDirectory": "mocks",
+  "additionalFiles": [
+    {"source": "support/sim_io.h", "destination": "sim_io.h"},
+    {"source": "support/sim_io.c", "destination": "sim_io.c"},
+    {"source": "support/check.c", "destination": "check.c"}
+  ],
+  "extractorCFlags": [],
+  "excludeFromCopy": [],
+  "addToCopy": []
+}

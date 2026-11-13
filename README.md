@@ -3,6 +3,24 @@
 Run C firmware on a host by replacing hardware-dependent code in a **separate
 source tree**. Your simulator supplies models and a host build system. Mockshadow
 transforms source; it does not emulate ARM instructions or invent device behavior.
+It does not guarantee timing equivalence to hardware. Native Windows/Linux and
+WebAssembly builds need consumer-owned models, build files and runtime adapters.
+
+## Use with a coding agent
+
+Ask an agent to read the versioned
+[Mockshadow firmware skill](.agents/skills/mockshadow-firmware/SKILL.md) and follow
+its linked docs. It guides inventory, model selection, recipes and validation
+without requiring conversation history or a personal installation. Codex and
+Claude Code discovery entries are included; see [agent integration](docs/agents.md)
+for discovery scope and use from a new consumer project.
+
+For daily use, keep firmware, simulator inputs and generated source separate.
+After a firmware update, audit recipes, regenerate, compile and rerun behavioral
+scenarios. Follow the [adaptation procedure](docs/firmware-adaptation.md), with
+target guidance for [native](docs/targets/native.md) and
+[WebAssembly](docs/targets/webassembly.md). The [examples](examples/README.md)
+progress from a fixed battery replacement to a stateful, time-driven controller.
 
 ## Install
 
@@ -26,19 +44,19 @@ firmware requires x86. Linux: install matching Clang/LLVM development packages;
 use `python3` if appropriate. Direct Python invocation needs no global install.
 Legacy `setup.py` also builds the extractor but changes system setup on Linux.
 
-## Run the included example
+## Run the fixed-battery example
 
-From this repository, enter `examples/demo/simulator`. Copy
+From this repository, enter `examples/fixed-battery/simulator`. Copy
 `.mockshadow/env.example.json` to `.mockshadow/env.json` using your editor,
 PowerShell `Copy-Item` or Linux `cp`. Then:
 
 ```sh
 python ../../../mockshadow.py mock
-gcc shadow_output/main.c shadow_output/adc.c -I shadow_output -o demo
-./demo
+gcc shadow_output/main.c shadow_output/adc.c -I shadow_output -o fixed-battery
+./fixed-battery
 ```
 
-PowerShell: `./demo.exe`. Expected output: **battery=3700 mV**. The original ADC
+PowerShell: `./fixed-battery.exe`. Expected output: **battery=3700 mV**. The original ADC
 returns zero; a symbol recipe substitutes a fixed model. A second `mock` reuses
 the transformed file. Edit `support/__additional__battery.h`, then rerun.
 
