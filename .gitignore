@@ -5,5 +5,10 @@ __pycache__
 **/.mockshadow/previous-tree/
 **/.mockshadow/generation.lock
 **/shadow_output/
-examples/demo/simulator/demo
-examples/demo/simulator/demo.exe
+examples/fixed-battery/simulator/fixed-battery
+examples/fixed-battery/simulator/fixed-battery.exe
+examples/sampled-controller/simulator/sampled-controller
+examples/sampled-controller/simulator/sampled-controller.exe
+examples/sampled-controller/simulator/model.mjs
+examples/sampled-controller/simulator/model.wasm
+examples/sampled-controller/simulator/reports/
