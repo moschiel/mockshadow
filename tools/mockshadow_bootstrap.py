@@ -161,7 +161,9 @@ def resolve(project, override=None, *, install=True, archive=None):
             probe.write_text('int mockshadow_probe(void) { return 1; }\n', encoding='ascii')
             result = subprocess.run([sys.executable, '-B', str(stage / 'clang-code-extractor/extract.py'),
                 'function', 'mockshadow_probe', str(probe), 'lines'], capture_output=True,
-                text=True, timeout=30, check=True)
+                text=True, timeout=30)
+            if result.returncode:
+                raise ValueError('Packaged extractor probe failed:\n' + result.stdout + result.stderr)
             if result.stdout.strip() != '1;1':
                 raise ValueError('Packaged extractor failed its installation probe')
             publish(stage, root)
