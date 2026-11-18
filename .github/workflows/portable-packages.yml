@@ -1,0 +1,94 @@
+name: portable-packages
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows-x64
+          - os: ubuntu-24.04
+            platform: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: UCRT64
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-clang
+            mingw-w64-ucrt-x86_64-llvm
+            mingw-w64-ucrt-x86_64-ninja
+      - name: Build Windows extractor and package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $prefix = (msys2 -c 'cygpath -m /ucrt64').Trim()
+          $env:PATH = "$prefix/bin;$env:PATH"
+          cmake -S clang-code-extractor -B clang-code-extractor/build -G Ninja -DCMAKE_BUILD_TYPE=Release "-DCMAKE_C_COMPILER=$prefix/bin/gcc.exe" "-DCMAKE_CXX_COMPILER=$prefix/bin/g++.exe" "-DCMAKE_MAKE_PROGRAM=$prefix/bin/ninja.exe" "-DLLVM_DIR=$prefix/lib/cmake/llvm" "-DClang_DIR=$prefix/lib/cmake/clang"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build clang-code-extractor/build --parallel 2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python tools/package_release.py --clang "$prefix/bin/clang.exe" --runtime-bin "$prefix/bin" --licenses "$prefix/share/licenses"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Build Linux extractor and package
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 llvm-18-dev libclang-18-dev libclang-cpp18-dev cmake ninja-build patchelf
+          cmake -S clang-code-extractor -B clang-code-extractor/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DLLVM_DIR=/usr/lib/llvm-18/lib/cmake/llvm -DClang_DIR=/usr/lib/llvm-18/lib/cmake/clang
+          cmake --build clang-code-extractor/build --parallel 2
+          mkdir -p dist/licenses
+          python - <<'PY'
+          from pathlib import Path
+          import shutil
+          for source in Path('/usr/share/doc').glob('*/copyright'):
+              shutil.copyfile(source, Path('dist/licenses') / (source.parent.name + '.txt'))
+          PY
+          python tools/package_release.py --clang clang-18 --licenses dist/licenses
+      - run: python -m unittest discover -s tests -v
+      - name: Package smoke
+        shell: bash
+        run: python tools/smoke_package.py dist/mockshadow-2.1.0-${{ matrix.platform }}.zip dist/lock-${{ matrix.platform }}.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mockshadow-${{ matrix.platform }}
+          path: |
+            dist/*.zip
+            dist/lock-*.json
+  windows-runtime:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@v4
+        with:
+          name: mockshadow-windows-x64
+          path: dist
+      - run: python tools/smoke_package.py dist/mockshadow-2.1.0-windows-x64.zip dist/lock-windows-x64.json
+  linux-runtime:
+    needs: build
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    steps:
+      - run: apt-get update && apt-get install -y python3 ca-certificates
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: mockshadow-linux-x64
+          path: dist
+      - run: python3 tools/smoke_package.py dist/mockshadow-2.1.0-linux-x64.zip dist/lock-linux-x64.json

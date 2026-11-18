@@ -188,6 +188,7 @@ def _generate(project, original, config, tree, output, backup, force, details):
     tool_root = Path(__file__).parent
     tool_files = list(tool_root.glob("*.py")) + list((tool_root / "clang-code-extractor").glob("*.py"))
     tool_files += list((tool_root / "clang-code-extractor/build").glob("extractor*"))
+    tool_files += list(tool_root.glob("distribution.json"))
     context = fingerprint({"version": VERSION, "original": str(original), "config": config,
         "sources": {k: digest(v) for k, v in sources.items()},
         "additions": {k: digest(v) for k, v in additions.items()},

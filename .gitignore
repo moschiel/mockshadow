@@ -12,3 +12,6 @@ examples/sampled-controller/simulator/sampled-controller.exe
 examples/sampled-controller/simulator/model.mjs
 examples/sampled-controller/simulator/model.wasm
 examples/sampled-controller/simulator/reports/
+
+dist/
+.tools/

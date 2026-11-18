@@ -24,6 +24,12 @@ progress from a fixed battery replacement to a stateful, time-driven controller.
 
 ## Install
 
+For consumers, use a pinned **portable package** and the bootstrap installer; see
+[distribution](docs/distribution.md). Python 3.12+ remains required; the extractor
+and its runtime dependencies are already built. Source installation below is for
+developing Mockshadow or platforms without a published package.
+
+
 Use Python **3.12+**, Git, CMake and LLVM/Clang development libraries. Mockshadow
 itself requires no Python packages. Install the platform dependencies in the
 [extractor README](clang-code-extractor/README.md), then:
@@ -186,8 +192,8 @@ The extractor still parses per directive and takes the first matching symbol;
 it may recover from Clang diagnostics. Sequential edits can change later parsing,
 so naive batching would change semantics. See [architecture](docs/architecture.md).
 Use `mock --force` after changing external includes/toolchain DLLs outside the hashed
-inputs. Run audit/generation against one extractor checkout sequentially: its
-upstream scratch files are shared.
+inputs. Extractor calls use separate temporary directories, including when multiple
+consumers share an installation. Do not generate and compile the same project concurrently.
 
 ## Maintenance
 

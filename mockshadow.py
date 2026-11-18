@@ -3,11 +3,13 @@
 import argparse
 from pathlib import Path
 import sys
+sys.dont_write_bytecode = True
+from distribution import VERSION
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
-    parser.add_argument('--version', action='version', version='Mockshadow 2.0')
+    parser.add_argument('--version', action='version', version=f'Mockshadow {VERSION}')
     commands = parser.add_subparsers(dest='command', required=True)
     mock = commands.add_parser('mock', help='Generate shadow_output', allow_abbrev=False)
     mock.add_argument('-f', '--force', action='store_true', help='Reapply recipes without the cache')

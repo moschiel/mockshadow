@@ -19,8 +19,10 @@ and flags; recompute after edits affecting preprocessing/declarations. Detect
 overlaps and compare with sequential output before enabling. The current
 first-match, early-exit extractor cannot safely batch by passing multiple flags.
 
-Other follow-ups: isolate extractor scratch files across projects, tokenized flag
-lists, strict opt-in
+Extractor invocations isolate scratch files in temporary directories; portable
+packages supply their own Clang resource directory.
+
+Other follow-ups: tokenized flag lists, strict opt-in
 diagnostics/signature validation. These are not implemented guarantees.
 
 Windows shadow-file opens retry transient locks before executing each write.
