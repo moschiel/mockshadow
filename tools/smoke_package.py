@@ -20,6 +20,7 @@ def main():
     os.environ.pop('MOCKSHADOW_ROOT', None)
     with tempfile.TemporaryDirectory(prefix='mockshadow-smoke-') as temporary:
         root = Path(temporary)
+        os.environ['MOCKSHADOW_HOME'] = str(root / 'shared')
         shutil.copy2(args.lock, root / 'mockshadow.lock.json')
         tool = resolve(root, archive=args.archive)
         env = dict(os.environ, PATH=os.path.join(os.environ.get('SystemRoot', '/usr'), 'System32')

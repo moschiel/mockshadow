@@ -26,19 +26,33 @@ ZIP, still checked against the lock), and `--local` (explicit development path).
 Use `identity(tool)` for provenance instead of requiring a Git checkout.
 
 Resolution: explicit override / MOCKSHADOW_ROOT first; otherwise the pinned
-package in the consumer's ignored `.tools` directory. It never scans neighboring
-repositories, picks `latest`, installs compilers or changes the system PATH.
-An explicit broken override fails rather than silently selecting another tool.
-Keep existing developer overrides when migrating a project.
+package in the shared user installation. Windows uses `%LOCALAPPDATA%/Mockshadow`;
+Linux uses `$XDG_DATA_HOME/mockshadow` (default `~/.local/share/mockshadow`).
+`MOCKSHADOW_HOME` can explicitly select another shared location. Packages are keyed
+by version, platform and archive hash under `packages/`: projects with the same
+lock reuse one installation, while different pinned releases coexist.
 
-Each project has its own cache, allowing different versions. Downloads require
-HTTPS and a pinned SHA-256, are staged, and are published by rename only after
-verification. Concurrent installations fail with a clear lock message. An
-interrupted installer can leave `.tools/.mockshadow-install.lock`; remove it
-only after confirming no installer is running. Corrupted installations fail;
-remove only the reported package directory and rerun setup to restore it.
-No automatic cleanup of other versions occurs. Once installed, reuse is offline.
+Run `python setup_mockshadow.py --install-command` in a consumer to install the
+small `mockshadow` dispatcher in the shared `bin/` directory. On Windows this adds
+only that directory to the user PATH; reopen the terminal. On Linux add it to PATH.
+Run `mockshadow mock`, `mockshadow audit` or `mockshadow --version` from a consumer;
+the dispatcher finds its nearest ancestor mockshadow.lock.json and uses that pin.
+There is no implicit global latest version. Explicit development overrides remain
+supported and existing project .env files are preserved.
+
+Downloads require HTTPS and a pinned SHA-256, are staged, and are published by
+rename only after verification. Concurrent installers for the same package wait
+up to 120 seconds and reuse the first completed installation. Other versions have
+independent locks. After interruption, remove a reported lock only after confirming
+no installer is running. Corrupted installations fail rather than being used.
+Once installed, reuse is offline. No automatic deletion of shared versions occurs.
 Hash checks detect corruption, not a compromise of the trusted consumer lock.
+
+For existing local .tools copies, run `python tools/migrate_shared.py --project PATH`
+(repeat --project for each consumer). It reuses a verified existing package, checks
+that every selected consumer resolves, installs the command, then removes verified
+project-local package copies. It leaves unrelated files and explicit source checkouts
+alone. Run this from your normal user terminal, not an app-isolated environment.
 
 ## Build and release
 
@@ -67,11 +81,8 @@ also cover the runtime DLLs and headers. Consumers include this manifest in thei
 generation fingerprint. Run `mock --force` after changing external toolchain
 dependencies in source mode.
 
-## First implementation status
+## Published runtime
 
-Local Windows packaging and tests can be run before publication. Until v2.1.0
-assets are published, a new consumer must use `--archive` with the prepared ZIP
-or select a local checkout. A lock must not advertise a platform that has not
-produced a tested artifact. Linux validation/release availability is independent
-of Windows; the bootstrap explains missing platforms rather than building them
-implicitly. No macOS/ARM package is provided in this iteration.
+Version 2.1.0 is published for Windows x64 and Ubuntu 24.04 x64. The shared
+installer is consumer-side tooling: it reuses the exact immutable 2.1.0 archives
+without republishing or rebuilding them. No macOS/ARM package is provided.

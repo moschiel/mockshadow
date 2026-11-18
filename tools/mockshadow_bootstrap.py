@@ -1,6 +1,6 @@
 """Vendored stdlib-only installer. Canonical source: Mockshadow tools/.
 
-Python 3.12+. No global PATH changes, source builds or implicit latest version.
+Python 3.12+. Shared per-user packages; no source builds or implicit latest version.
 """
 import argparse
 import hashlib
@@ -99,6 +99,56 @@ def extract(archive, destination):
             target.chmod(0o755 if mode & 0o111 else 0o644)
 
 
+def user_home():
+    explicit = os.environ.get('MOCKSHADOW_HOME', '').strip()
+    if explicit:
+        return Path(explicit).expanduser().resolve()
+    if os.name == 'nt':
+        return Path(os.environ['LOCALAPPDATA']) / 'Mockshadow'
+    return Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share'))) / 'mockshadow'
+
+
+def command_project(start):
+    start = Path(start).resolve()
+    for candidate in (start, *start.parents):
+        if (candidate / 'mockshadow.lock.json').is_file():
+            return candidate
+    raise ValueError('No mockshadow.lock.json found. Run from a configured consumer project.')
+
+
+def install_command():
+    # A small dispatcher selects the calling project's pinned package.
+    directory = user_home() / 'bin'
+    directory.mkdir(parents=True, exist_ok=True)
+    script = directory / 'mockshadow_bootstrap.py'
+    if Path(__file__).resolve() != script.resolve():
+        shutil.copyfile(__file__, script)
+    if os.name == 'nt':
+        (directory / 'mockshadow.cmd').write_text(
+            '@echo off\n"' + sys.executable + '" -B "' + str(script) + '" --run %*\n', encoding='utf-8')
+        import winreg
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, 'Environment') as key:
+            try:
+                value, kind = winreg.QueryValueEx(key, 'Path')
+            except FileNotFoundError:
+                value, kind = '', winreg.REG_EXPAND_SZ
+            entries = [os.path.normcase(os.path.expandvars(x.strip().strip('"'))) for x in value.split(';')]
+            if os.path.normcase(str(directory)) not in entries:
+                winreg.SetValueEx(key, 'Path', 0, kind, value.rstrip(';') + (';' if value else '') + str(directory))
+        # Notify future processes; existing terminals retain their environment.
+        import ctypes
+        from ctypes import wintypes
+        ctypes.windll.user32.SendMessageTimeoutW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPCWSTR, wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
+        result = ctypes.c_size_t()
+        ctypes.windll.user32.SendMessageTimeoutW(0xffff, 0x001a, 0, 'Environment', 2, 1000, ctypes.byref(result))
+    else:
+        import shlex
+        launcher = directory / 'mockshadow'
+        launcher.write_text('#!/bin/sh\nexec ' + shlex.quote(sys.executable) + ' -B ' + shlex.quote(str(script)) + ' --run "$@"\n')
+        launcher.chmod(0o755)
+    print(f'Command installed in {directory}; use a new terminal (add this directory to PATH on Linux).', file=sys.stderr)
+
+
 def resolve(project, override=None, *, install=True, archive=None):
     if sys.version_info < (3, 12):
         raise ValueError('Mockshadow requires Python 3.12+')
@@ -118,7 +168,7 @@ def resolve(project, override=None, *, install=True, archive=None):
         raise ValueError(f'No verified package pinned for {platform_key()}; set MOCKSHADOW_ROOT or update the lock.')
     if not re.fullmatch('[a-f0-9]{64}', asset['sha256']):
         raise ValueError('Invalid package SHA-256')
-    cache = project / '.tools'
+    cache = user_home() / 'packages'
     root = cache / f'mockshadow-{version}-{platform_key()}-{asset["sha256"][:12]}'
     if cache.is_symlink() or cache.is_junction() or root.is_symlink() or root.is_junction():
         raise ValueError('Linked tool directories are not supported')
@@ -127,16 +177,27 @@ def resolve(project, override=None, *, install=True, archive=None):
         return root
     if not install:
         raise ValueError('Pinned Mockshadow is missing. Run setup_mockshadow.py first.')
-    cache.mkdir(exist_ok=True)
+    cache.mkdir(parents=True, exist_ok=True)
     # Exclusive installation lock. No automatic deletion of another process's lock.
-    gate = cache / '.mockshadow-install.lock'
-    try:
-        stream = gate.open('x')
-    except FileExistsError:
-        raise ValueError(f'Another installation may be running: {gate}') from None
+    gate = cache / (root.name + '.lock')
+    deadline = time.monotonic() + 120
+    while True:
+        try:
+            stream = gate.open('x')
+            break
+        except FileExistsError:
+            if root.exists():
+                verify(root, version)
+                return root
+            if time.monotonic() >= deadline:
+                raise ValueError(f'Installation lock timed out; check the installer before removing: {gate}') from None
+            time.sleep(0.2)
     try:
         with stream:
             stream.write(str(os.getpid()))
+        if root.exists():
+            verify(root, version)
+            return root
         with tempfile.TemporaryDirectory(prefix='mockshadow-stage-', dir=cache) as scratch:
             scratch = Path(scratch)
             download = scratch / 'package.zip'
@@ -183,14 +244,26 @@ def identity(root):
 
 
 def main(project=None):
+    if sys.argv[1:2] == ['--run']:
+        try:
+            project = command_project(Path.cwd())
+            tool = resolve(project)
+            raise SystemExit(subprocess.call([sys.executable, '-B', str(tool / 'mockshadow.py'), *sys.argv[2:]], cwd=project))
+        except (OSError, ValueError) as error:
+            raise SystemExit(str(error))
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--project', type=Path, default=project or Path.cwd())
     parser.add_argument('--check', action='store_true', help='Verify without downloading')
     parser.add_argument('--archive', type=Path, help='Install an offline ZIP matching the lock')
+    parser.add_argument('--install-command', action='store_true', help='Install the shared command and add it to user PATH on Windows')
     parser.add_argument('--local', help='Use an explicitly selected development checkout')
     args = parser.parse_args()
     try:
+        if args.check and args.install_command:
+            raise ValueError('--check cannot install a command')
         print(resolve(args.project, args.local, install=not args.check, archive=args.archive))
+        if args.install_command:
+            install_command()
     except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         parser.exit(1, f'Mockshadow setup: {error}\n')
 
