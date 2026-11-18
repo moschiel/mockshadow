@@ -14,6 +14,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
 import zipfile
 
@@ -21,6 +22,19 @@ import zipfile
 def digest(path):
     with Path(path).open('rb') as stream:
         return hashlib.file_digest(stream, 'sha256').hexdigest()
+
+
+def publish(stage, root):
+    # Windows loaders/indexers may briefly retain handles after the probe exits.
+    deadline = time.monotonic() + 5
+    while True:
+        try:
+            stage.rename(root)
+            return
+        except OSError as error:
+            if getattr(error, 'winerror', None) not in (5, 32, 33) or time.monotonic() >= deadline:
+                raise
+            time.sleep(0.1)
 
 
 def platform_key():
@@ -150,7 +164,7 @@ def resolve(project, override=None, *, install=True, archive=None):
                 text=True, timeout=30, check=True)
             if result.stdout.strip() != '1;1':
                 raise ValueError('Packaged extractor failed its installation probe')
-            stage.rename(root)
+            publish(stage, root)
     finally:
         gate.unlink()
     return root
@@ -175,7 +189,7 @@ def main(project=None):
     args = parser.parse_args()
     try:
         print(resolve(args.project, args.local, install=not args.check, archive=args.archive))
-    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+    except (OSError, ValueError, KeyError, subprocess.SubprocessError) as error:
         parser.exit(1, f'Mockshadow setup: {error}\n')
 
 

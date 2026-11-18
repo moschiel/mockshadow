@@ -55,10 +55,36 @@ class DistributionTests(unittest.TestCase):
             b.resolve(self.project, archive=self.package)
         self.assertEqual(list((self.project / '.tools').iterdir()), [])
 
+    def test_download_then_reuse_without_network(self):
+        import io
+        response = io.BytesIO(self.package.read_bytes())
+        response.geturl = lambda: 'https://example.invalid/tool.zip'
+        with patch.object(b.urllib.request, 'urlopen', return_value=response) as download:
+            root = b.resolve(self.project)
+            download.assert_called_once_with('https://example.invalid/tool.zip', timeout=60)
+        with patch.object(b.urllib.request, 'urlopen', side_effect=AssertionError('network')):
+            self.assertEqual(b.resolve(self.project), root)
+
+    def test_download_failure_releases_install_lock(self):
+        with patch.object(b.urllib.request, 'urlopen', side_effect=OSError('offline')):
+            with self.assertRaisesRegex(OSError, 'offline'):
+                b.resolve(self.project)
+        self.assertEqual(list((self.project / '.tools').iterdir()), [])
+
     def test_check_does_not_create_directories(self):
         with self.assertRaisesRegex(ValueError, 'missing'):
             b.resolve(self.project, install=False)
         self.assertFalse((self.project / '.tools').exists())
+
+    def test_publish_retries_transient_windows_handle(self):
+        from unittest.mock import Mock
+        stage = Mock()
+        error = OSError('temporary loader handle')
+        error.winerror = 5
+        stage.rename.side_effect = [error, None]
+        with patch.object(b.time, 'sleep'):
+            b.publish(stage, self.root / 'installed')
+        self.assertEqual(stage.rename.call_count, 2)
 
     def test_explicit_override_without_lock_or_network(self):
         (self.project / 'mockshadow.lock.json').unlink()

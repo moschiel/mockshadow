@@ -1,6 +1,13 @@
 name: portable-packages
 on:
+  push:
+    branches: [feat/portable-distribution]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a new immutable-version release after runtime checks
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -60,7 +67,7 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - name: Package smoke
         shell: bash
-        run: python tools/smoke_package.py dist/mockshadow-2.1.0-${{ matrix.platform }}.zip dist/lock-${{ matrix.platform }}.json
+        run: python tools/smoke_package.py dist/mockshadow-*-${{ matrix.platform }}.zip dist/lock-${{ matrix.platform }}.json
       - uses: actions/upload-artifact@v4
         with:
           name: mockshadow-${{ matrix.platform }}
@@ -79,7 +86,7 @@ jobs:
         with:
           name: mockshadow-windows-x64
           path: dist
-      - run: python tools/smoke_package.py dist/mockshadow-2.1.0-windows-x64.zip dist/lock-windows-x64.json
+      - run: python tools/smoke_package.py (Get-Item dist/mockshadow-*-windows-x64.zip).FullName dist/lock-windows-x64.json
   linux-runtime:
     needs: build
     runs-on: ubuntu-24.04
@@ -91,4 +98,23 @@ jobs:
         with:
           name: mockshadow-linux-x64
           path: dist
-      - run: python3 tools/smoke_package.py dist/mockshadow-2.1.0-linux-x64.zip dist/lock-linux-x64.json
+      - run: python3 tools/smoke_package.py dist/mockshadow-*-linux-x64.zip dist/lock-linux-x64.json
+  release:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    needs: [windows-runtime, linux-runtime]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mockshadow-*
+          merge-multiple: true
+          path: dist
+      - name: Publish exact tested artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION=$(python3 -c 'from distribution import VERSION; print(VERSION)')
+          gh release create "v$VERSION" dist/*.zip dist/lock-*.json --target "$GITHUB_SHA" --title "Mockshadow $VERSION" --notes "Portable Windows x64 and Ubuntu 24.04 x64 runtimes. Python 3.12+ required. Use the attached platform lock fragments to pin consumers."

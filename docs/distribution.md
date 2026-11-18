@@ -56,9 +56,11 @@ Hash checks detect corruption, not a compromise of the trusted consumer lock.
 6. Update consumer locks from the tested artifacts (both platforms), and keep
    vendored bootstrap copies synchronized. Publish producers before consumers.
 
-The manual `portable-packages` workflow builds both platforms and runs Windows
+The `portable-packages` workflow runs on the distribution feature branch and
+manual dispatch. It builds both platforms and runs Windows
 acceptance on a separate runner without the build toolchain. It uploads artifacts
-and lock fragments; it does not publish a GitHub release or change consumer locks.
+and lock fragments. Manual dispatch with `publish=true` publishes a new release
+only after both runtime jobs pass. Default builds do not publish or change consumer locks.
 Use the exact artifacts for publication; rebuilding changes the checksums.
 Source identities in distribution.json describe the build inputs; its file hashes
 also cover the runtime DLLs and headers. Consumers include this manifest in their
