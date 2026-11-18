@@ -35,6 +35,7 @@ jobs:
           install: >-
             mingw-w64-ucrt-x86_64-gcc
             mingw-w64-ucrt-x86_64-clang
+            mingw-w64-ucrt-x86_64-clang-tools-extra
             mingw-w64-ucrt-x86_64-llvm
             mingw-w64-ucrt-x86_64-ninja
       - name: Build Windows extractor and package
